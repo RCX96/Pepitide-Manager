@@ -4,7 +4,7 @@ PWA de registro pessoal de aplicações, ciclos e evolução de peso. Funciona o
 
 **Aviso:** o aplicativo é um diário. Ele não avalia segurança, compatibilidade ou doses de compostos e não substitui orientação profissional.
 
-- Produção: <https://pepitide-manager.vercel.app>
+- Produção: <https://rcx96.github.io/Pepitide-Manager>
 - Versão atual: 2.3
 
 ## O que faz
@@ -31,8 +31,9 @@ manifest.webmanifest  metadados da PWA
 service-worker.js     cache offline (network-first na navegação)
 icon-192.png          ícone
 icon-512.png          ícone
-vercel.json           headers de segurança e cache
-tests/logic.test.mjs  testes das funções puras
+.github/workflows/deploy.yml  CI e deploy na GitHub Pages
+tests/logic.test.mjs          testes das funções puras
+tests/version.test.mjs        guarda de consistência da versão
 ```
 
 O script inline termina com `render()` e registra o service worker. As funções de domínio (`dayCount`, `elapsedCycle`, `strictDate`, `validateBackup`, `csvCell`) são puras o bastante para serem testadas fora do navegador.
@@ -55,7 +56,7 @@ Abrir `index.html` direto no disco também funciona, mas sem modo offline.
 
 ## Deploy
 
-O deploy é feito pela Vercel a partir da branch `main`. Alterações entram por pull request; a `main` é a fonte da verdade.
+O deploy é feito pelo GitHub Actions na GitHub Pages, a partir da branch `main`. Alterações entram por pull request; a `main` é a fonte da verdade. O workflow roda os testes, publica apenas os arquivos de runtime e confere a versão publicada.
 
 ## Versionamento
 
