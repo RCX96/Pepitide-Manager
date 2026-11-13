@@ -1,0 +1,20 @@
+{
+  "name": "pepitide-manager",
+  "version": "2.4.0",
+  "description": "PWA de registro pessoal de aplicações, ciclos e evolução de peso.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "lint": "eslint app.js styles.css",
+    "lint:fix": "eslint app.js styles.css --fix",
+    "format": "prettier --write index.html app.js styles.css manifest.webmanifest service-worker.js README.md",
+    "format:check": "prettier --check index.html app.js styles.css manifest.webmanifest service-worker.js README.md"
+  },
+  "devDependencies": {
+    "eslint": "^9.39.5",
+    "eslint-config-prettier": "^9.1.2",
+    "eslint-plugin-prettier": "^5.5.7",
+    "prettier": "^3.10.1"
+  }
+}

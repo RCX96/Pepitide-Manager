@@ -6,9 +6,10 @@ import vm from 'node:vm';
 import { webcrypto } from 'node:crypto';
 
 const htmlPath = fileURLToPath(new URL('../index.html', import.meta.url));
+const appPath = fileURLToPath(new URL('../app.js', import.meta.url));
 const html = readFileSync(htmlPath, 'utf8');
-const scriptMatch = html.match(/<script>([\s\S]*?)<\/script>/);
-if (!scriptMatch) throw new Error('Script inline não encontrado em index.html');
+const js = readFileSync(appPath, 'utf8');
+if (!js) throw new Error('Script app.js não encontrado');
 
 // O app é um arquivo único: carregamos o script inline em um contexto isolado,
 // com o mínimo de DOM/armazenamento para o render inicial, e testamos as funções puras.
@@ -46,7 +47,7 @@ function loadApp(initialData = null) {
   };
   sandbox.globalThis = sandbox;
   vm.createContext(sandbox);
-  vm.runInContext(scriptMatch[1], sandbox, { filename: 'index.html:inline-script' });
+  vm.runInContext(js, sandbox, { filename: 'app.js' });
   // `db` é declarado com `let`, então não vira propriedade do sandbox; expõe um getter para os testes.
   Object.defineProperty(sandbox, 'db', { get: () => vm.runInContext('db', sandbox), configurable: true });
   sandbox._getStored = () => {
