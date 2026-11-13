@@ -26,7 +26,11 @@ try {
 let tab = 'inicio',
   editing = null,
   appDraft = null,
-  compounds = [{ name: '', dose: '', unit: 'mg' }];
+  compounds = [{ name: '', dose: '', unit: 'mg' }],
+  applicationFilter = '',
+  catalogFilter = '';
+const LOCK_KEY = 'peptide-manager-lock-v1';
+let unlocked = !localStorage.getItem(LOCK_KEY);
 const $ = (id) => document.getElementById(id),
   esc = (x) =>
     String(x ?? '').replace(
@@ -83,6 +87,89 @@ function rememberedCompoundNames() {
 function rememberCompoundNames(names) {
   db.compoundCatalog = uniqueCompoundNames([...(db.compoundCatalog || []), ...names]);
 }
+function lastCompoundEntry(name) {
+  const key = String(name || '')
+    .trim()
+    .toLocaleLowerCase('pt-BR');
+  return db.applications
+    .slice()
+    .reverse()
+    .flatMap((a) => a.compounds || [])
+    .find(
+      (c) =>
+        String(c.name || '')
+          .trim()
+          .toLocaleLowerCase('pt-BR') === key,
+    );
+}
+function filteredApplications() {
+  const q = applicationFilter.trim().toLocaleLowerCase('pt-BR');
+  return db.applications.filter(
+    (a) =>
+      !q ||
+      [a.date, a.time, a.site, a.notes, ...(a.compounds || []).map((c) => c.name)]
+        .join(' ')
+        .toLocaleLowerCase('pt-BR')
+        .includes(q),
+  );
+}
+function setApplicationFilter(value) {
+  applicationFilter = String(value || '');
+  render();
+}
+function renameCompound(oldName, newName) {
+  const clean = String(newName || '').trim();
+  if (!clean) {
+    return;
+  }
+  db.compoundCatalog = uniqueCompoundNames(
+    (db.compoundCatalog || []).map((n) => (n === oldName ? clean : n)),
+  );
+  save();
+}
+function removeCompoundName(name) {
+  db.compoundCatalog = (db.compoundCatalog || []).filter((n) => n !== name);
+  save();
+}
+async function hashText(value) {
+  if (crypto?.subtle) {
+    const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
+    return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
+  }
+  return btoa(unescape(encodeURIComponent(value)));
+}
+async function setLock() {
+  const first = prompt('Crie um código local com pelo menos 4 caracteres:');
+  if (!first || first.length < 4) {
+    return alert('O código precisa ter pelo menos 4 caracteres.');
+  }
+  const second = prompt('Repita o código:');
+  if (first !== second) {
+    return alert('Os códigos não conferem.');
+  }
+  localStorage.setItem(LOCK_KEY, await hashText(first));
+  unlocked = true;
+  alert('Código local criado.');
+  render();
+}
+async function removeLock() {
+  const code = prompt('Digite o código atual para remover a proteção:');
+  if (!code || (await hashText(code)) !== localStorage.getItem(LOCK_KEY)) {
+    return alert('Código incorreto.');
+  }
+  localStorage.removeItem(LOCK_KEY);
+  alert('Proteção removida.');
+  render();
+}
+async function unlockApp() {
+  const input = $('unlockCode');
+  if (!input || (await hashText(input.value)) !== localStorage.getItem(LOCK_KEY)) {
+    alert('CÃ³digo incorreto.');
+    return;
+  }
+  unlocked = true;
+  render();
+}
 function compoundNameList() {
   return `<datalist id="compoundNames">${rememberedCompoundNames()
     .map((name) => `<option value="${esc(name)}"></option>`)
@@ -115,6 +202,20 @@ function syncNav() {
     b.classList.toggle('active', b.getAttribute('data-id') === tab);
   }
 }
+function extraPanels() {
+  if (tab === 'aplicacoes') {
+    return `<div class="panel quick-filter"><h2>Buscar aplicações</h2><input id="applicationSearch" type="search" value="${esc(applicationFilter)}" placeholder="Composto, data, local ou observação" oninput="setApplicationFilter(this.value)"></div>`;
+  }
+  if (tab === 'dados') {
+    const names = rememberedCompoundNames().filter(
+      (n) =>
+        !catalogFilter ||
+        n.toLocaleLowerCase('pt-BR').includes(catalogFilter.toLocaleLowerCase('pt-BR')),
+    );
+    return `<div class="panel"><h2>Catálogo de compostos</h2><p class="muted">Edite ou remova sugestões salvas para agilizar novos registros.</p><input type="search" placeholder="Filtrar catálogo" value="${esc(catalogFilter)}" oninput="catalogFilter=this.value;render()"><div class="catalog-list">${names.length ? names.map((name) => `<div class="row between catalog-row"><span>${esc(name)}</span><span class="row"><button type="button" data-action="rename-compound" data-id="${esc(name)}">Renomear</button><button type="button" class="danger" data-action="remove-compound-name" data-id="${esc(name)}">Remover</button></span></div>`).join('') : '<p class="empty">Nenhum composto salvo.</p>'}</div></div><div class="panel"><h2>Proteção local</h2><p class="muted">Crie um código para bloquear a abertura deste navegador. O código não é enviado para a nuvem.</p>${localStorage.getItem('peptide-manager-lock-v1') ? button('Alterar código local', 'set-lock') + button('Remover código local', 'remove-lock') : button('Criar código local', 'set-lock', '', 'primary')}</div><div class="panel"><h2>Transferir para outro celular</h2><p class="muted">Baixe o backup verificado neste aparelho e restaure-o no outro. O arquivo contém todos os registros e o catálogo.</p>${button('Baixar arquivo de transferência', 'export-data', '', 'primary')}</div>`;
+  }
+  return '';
+}
 function animateRender() {
   const app = $('app');
   if (!app || typeof app.querySelectorAll !== 'function') {
@@ -132,6 +233,12 @@ function animateRender() {
   });
 }
 function render() {
+  if (!unlocked) {
+    $('bottom-nav').innerHTML = '';
+    $('app').innerHTML =
+      '<div class="panel lock-screen"><h1>Aplicativo protegido</h1><p>Digite seu cÃ³digo local para abrir os registros.</p><input id="unlockCode" type="password" autocomplete="current-password" placeholder="CÃ³digo local"><button type="button" class="primary" data-action="unlock-app">Desbloquear</button></div>';
+    return;
+  }
   if (loadError) {
     $('bottom-nav').innerHTML = '';
     $('app').innerHTML =
@@ -149,6 +256,9 @@ function render() {
     relatorios: reports,
     dados: dataPage,
   }[tab]();
+  if (tab === 'aplicacoes' || tab === 'dados') {
+    $('app').insertAdjacentHTML('beforeend', extraPanels());
+  }
   animateRender();
 }
 function confirmDelete(type, id) {
@@ -303,13 +413,12 @@ function calendarPage() {
 function home() {
   const weights = [...db.weights].sort((a, b) => a.date.localeCompare(b.date));
   const current = weights.at(-1);
+  const recentApps = db.applications.slice().sort((a, b) => b.date.localeCompare(a.date));
   const active = db.cycles.filter((x) => x.status === 'active' && CYCLE_ID_RE.test(x.id));
   const paused = db.cycles.filter((x) => x.status === 'paused' && CYCLE_ID_RE.test(x.id));
   return `<h1>Painel inicial</h1>${backupReminder()}<div class="grid"><div class="metric"><span>Aplicações</span><strong>${db.applications.length}</strong></div><div class="metric"><span>Ciclos em andamento</span><strong>${active.length}</strong></div><div class="metric"><span>Peso atual</span><strong>${current ? num(current.value) + ' kg' : '—'}</strong></div><div class="metric"><span>Meta de peso</span><strong>${db.goal ? num(db.goal) + ' kg' : '—'}</strong></div></div><div class="panel"><h2>Tempo dos ciclos</h2>${active.length || paused.length ? [...active, ...paused].map((c) => `<div class="item"><div class="row between"><b>${esc(c.name)}</b><span class="pill">${c.status === 'paused' ? 'Pausado' : 'Em andamento'}</span></div><p><strong>${cycleDuration(c)}</strong> <span class="muted">• desde ${dateFmt(c.start)}</span></p><div class="row">${button(c.status === 'paused' ? 'Retomar ciclo' : 'Pausar ciclo', c.status === 'paused' ? 'resume-cycle' : 'pause-cycle', c.id)}${button('Ver ciclo', 'set-tab', 'ciclos')}</div></div>`).join('') : '<p class="empty">Nenhum ciclo em andamento ou pausado.</p>'}<p class="muted">O tempo de ciclo não inclui os dias em pausa.</p></div><div class="panel"><h2>Acesso rápido</h2><div class="row">${button('+ Registrar aplicação', 'set-tab', 'aplicacoes', 'primary')}${button('+ Registrar peso', 'set-tab', 'peso')}${button('+ Criar ciclo', 'set-tab', 'ciclos')}</div></div><div class="panel"><h2>Últimas aplicações</h2>${
-    db.applications.length
-      ? db.applications
-          .slice()
-          .sort((a, b) => b.date.localeCompare(a.date))
+    recentApps.length
+      ? recentApps
           .slice(0, 4)
           .map(
             (a) =>
@@ -323,7 +432,7 @@ function compoundFields() {
   return compounds
     .map(
       (c, i) =>
-        `<div class="item"><div class="row between"><b>Composto ${i + 1}</b>${compounds.length > 1 ? button('Remover', 'remove-compound', i, 'danger') : ''}</div><label>Nome</label><input list="compoundNames" value="${esc(c.name)}" oninput="compounds[${i}].name=this.value" placeholder="Nome do composto"><div class="two"><div><label>Dose</label><input type="number" min="0" step="any" value="${esc(c.dose)}" oninput="compounds[${i}].dose=this.value" placeholder="Ex.: 1.5"></div><div><label>Unidade</label><select onchange="compounds[${i}].unit=this.value">${['mg', 'mcg', 'mL', 'UI'].map((u) => `<option ${c.unit === u ? 'selected' : ''}>${u}</option>`).join('')}</select></div></div></div>`,
+        `<div class="item"><div class="row between"><b>Composto ${i + 1}</b>${compounds.length > 1 ? button('Remover', 'remove-compound', i, 'danger') : ''}</div><label>Nome</label><input list="compoundNames" value="${esc(c.name)}" oninput="compounds[${i}].name=this.value" onblur="const last=lastCompoundEntry(this.value);if(last&&!compounds[${i}].dose){compounds[${i}].dose=last.dose;compounds[${i}].unit=last.unit;$('compoundList').innerHTML=compoundFields()}" placeholder="Nome do composto"><div class="two"><div><label>Dose</label><input type="number" min="0" step="any" value="${esc(c.dose)}" oninput="compounds[${i}].dose=this.value" placeholder="Ex.: 1.5"></div><div><label>Unidade</label><select onchange="compounds[${i}].unit=this.value">${['mg', 'mcg', 'mL', 'UI'].map((u) => `<option ${c.unit === u ? 'selected' : ''}>${u}</option>`).join('')}</select></div></div></div>`,
     )
     .join('');
 }
@@ -362,6 +471,9 @@ function resetApp() {
   render();
 }
 function applications() {
+  const visible = filteredApplications()
+    .slice()
+    .sort((x, y) => y.date.localeCompare(x.date));
   const a = editing ? db.applications.find((x) => x.id === editing) : appDraft;
   const mode = editing ? 'Editar' : appDraft ? 'Nova (cópia)' : 'Nova';
   return `<h1>Aplicações</h1><div class="panel"><h2>${mode} aplicação • uma seringa</h2><form id="appForm" onsubmit="submitApp(event)"><div class="two"><div><label>Data</label><input name="date" type="date" required value="${a?.date || today()}"></div><div><label>Horário (opcional)</label><input name="time" type="time" value="${a?.time || ''}"></div></div><label>Local da aplicação</label><select name="site">${['Abdômen', 'Coxa', 'Braço', 'Outro', 'Não informado'].map((s) => `<option ${a?.site === s ? 'selected' : ''}>${s}</option>`).join('')}</select><label>Ciclo (opcional)</label><select name="cycleId"><option value="">Sem ciclo</option>${db.cycles
@@ -373,10 +485,8 @@ function applications() {
     .join(
       '',
     )}</select>${compoundNameList()}<div id="compoundList">${compoundFields()}</div>${button('+ Adicionar composto', 'add-compound')}<label>Observações</label><textarea name="notes" placeholder="Observações opcionais">${esc(a?.notes || '')}</textarea><p class="muted">Os nomes dos compostos ficam salvos neste navegador e aparecem como sugestões na próxima aplicação.</p><p class="warning">Compostos no mesmo registro representam a mesma seringa. O aplicativo não verifica compatibilidade.</p><div class="row actions"><button class="primary" type="submit">${a ? 'Salvar alterações' : 'Salvar aplicação'}</button>${a ? button('Cancelar', 'cancel-app') : ''}</div></form></div><div class="panel"><h2>Histórico de aplicações</h2>${
-    db.applications.length
-      ? db.applications
-          .slice()
-          .sort((a, b) => b.date.localeCompare(a.date))
+    visible.length
+      ? visible
           .map(
             (x) =>
               `<div class="item"><div class="row between"><b>${dateFmt(x.date)} ${esc(x.time || '')}</b><span class="muted">${esc(x.site)}</span></div><p>${x.compounds.map((c) => `${esc(c.name)} (${esc(c.dose)} ${esc(c.unit)})`).join(' + ')}</p><p class="muted">${esc(db.cycles.find((c) => c.id === x.cycleId)?.name || 'Sem ciclo')} ${x.notes ? '• ' + esc(x.notes) : ''}</p><div class="row">${button('Duplicar', 'copy-app', x.id)}${button('Editar', 'edit-app', x.id)}${button('Excluir', 'delete-app', x.id, 'danger')}</div></div>`,
@@ -1262,6 +1372,28 @@ function handleAction(e) {
       if (id !== null && id !== undefined && id !== '') {
         removeCompound(Number(id));
       }
+      break;
+    case 'rename-compound':
+      if (id) {
+        renameCompound(id, prompt('Novo nome do composto:', id));
+      }
+      break;
+    case 'remove-compound-name':
+      if (
+        id &&
+        confirm('Remover este nome das sugestões? Os registros existentes não serão alterados.')
+      ) {
+        removeCompoundName(id);
+      }
+      break;
+    case 'set-lock':
+      setLock();
+      break;
+    case 'remove-lock':
+      removeLock();
+      break;
+    case 'unlock-app':
+      unlockApp();
       break;
     case 'edit-cycle':
       if (id && CYCLE_ID_RE.test(id)) {

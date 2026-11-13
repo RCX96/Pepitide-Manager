@@ -456,6 +456,23 @@ textarea {
   font-size: 13px;
   border-collapse: collapse;
 }
+.quick-filter {
+  border-color: rgba(56, 189, 248, 0.45);
+}
+.catalog-list {
+  display: grid;
+  gap: 0.65rem;
+  margin-top: 1rem;
+}
+.catalog-row {
+  padding: 0.75rem;
+  border: 1px solid var(--line, rgba(148, 163, 184, 0.22));
+  border-radius: 0.8rem;
+  background: rgba(15, 23, 42, 0.35);
+}
+.catalog-row .row {
+  flex-wrap: wrap;
+}
 .report-table th,
 .report-table td {
   padding: 12px;
