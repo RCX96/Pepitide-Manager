@@ -42,7 +42,7 @@ O script inline termina com `render()` e registra o service worker. As funções
 Pré-requisito: Node.js 20 ou superior.
 
 ```bash
-node --test tests/
+node --test
 ```
 
 Para abrir o app, sirva a pasta por HTTP (o service worker e a instalação da PWA exigem `https` ou `localhost`):
