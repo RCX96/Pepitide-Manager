@@ -12,11 +12,17 @@ if (!scriptMatch) throw new Error('Script inline não encontrado em index.html')
 
 // O app é um arquivo único: carregamos o script inline em um contexto isolado,
 // com o mínimo de DOM/armazenamento para o render inicial, e testamos as funções puras.
-function loadApp() {
+function loadApp(initialData = null) {
   const elements = new Map();
   const makeElement = () => ({ innerHTML: '', textContent: '', remove() {}, showModal() {}, close() {} });
+  const store = new Map();
+  if (initialData) store.set('peptide-manager-v1', JSON.stringify(initialData));
   const sandbox = {
-    localStorage: { getItem: () => null, setItem() {}, removeItem() {} },
+    localStorage: {
+      getItem: (k) => store.get(k) || null,
+      setItem: (k, v) => store.set(k, String(v)),
+      removeItem: (k) => store.delete(k),
+    },
     document: {
       getElementById(id) {
         if (!elements.has(id)) elements.set(id, makeElement());
@@ -41,6 +47,12 @@ function loadApp() {
   sandbox.globalThis = sandbox;
   vm.createContext(sandbox);
   vm.runInContext(scriptMatch[1], sandbox, { filename: 'index.html:inline-script' });
+  // `db` é declarado com `let`, então não vira propriedade do sandbox; expõe um getter para os testes.
+  Object.defineProperty(sandbox, 'db', { get: () => vm.runInContext('db', sandbox), configurable: true });
+  sandbox._getStored = () => {
+    const raw = store.get('peptide-manager-v1');
+    return raw ? JSON.parse(raw) : null;
+  };
   return sandbox;
 }
 
@@ -159,3 +171,135 @@ test('csvCell neutraliza fórmulas e escapa aspas', () => {
   assert.equal(app.csvCell('texto "com aspas"'), '"texto ""com aspas"""');
   assert.equal(app.csvCell('-1'), '"-1"');
 });
+
+test('validateBackup recusa ciclo com identificador malicioso (XSS)', () => {
+  assert.throws(
+    () =>
+      app.validateBackup({
+        applications: [],
+        cycles: [{ id: '<img onerror=alert(1)>', name: 'Ciclo Malicioso', status: 'active', start: '2026-11-01' }],
+        weights: [],
+      }),
+    /Ciclo inválido/,
+  );
+  assert.throws(
+    () =>
+      app.validateBackup({
+        applications: [],
+        cycles: [{ id: '\'" onmouseover=alert(1)', name: 'Ciclo Malicioso 2', status: 'active', start: '2026-11-01' }],
+        weights: [],
+      }),
+    /Ciclo inválido/,
+  );
+});
+
+test('validateBackup aceita ciclo com identificador válido (hex / uuid)', () => {
+  assert.equal(
+    app.validateBackup({
+      applications: [],
+      cycles: [{ id: 'c6fa1ff3-7e3e-4e11-a78d-7373796835b5', name: 'Ciclo Válido', status: 'active', start: '2026-11-01' }],
+      weights: [],
+    }),
+    true,
+  );
+});
+
+test('validateBackup recusa aplicação vinculada a cycleId inválido', () => {
+  assert.throws(
+    () =>
+      app.validateBackup({
+        applications: [
+          {
+            id: 'app1',
+            date: '2026-11-01',
+            cycleId: '<script>alert(1)</script>',
+            compounds: [{ name: 'A', dose: 1, unit: 'mg' }],
+          },
+        ],
+        cycles: [],
+        weights: [],
+      }),
+    /Ciclo inválido em aplicação/,
+  );
+});
+
+test('index.html não contém handlers onclick inline', () => {
+  assert.equal(/\sonclick=/i.test(html), false);
+});
+
+test('renderização de ciclos utiliza data-action e data-id sem onclick inline', () => {
+  const testApp = loadApp();
+  testApp.db.cycles = [
+    {
+      id: 'abc-123',
+      name: 'Ciclo Teste <script>',
+      start: '2026-11-01',
+      status: 'active',
+      notes: 'Nota <teste>',
+      pauses: [],
+    },
+  ];
+  const rendered = testApp.cycles();
+  assert.equal(rendered.includes('onclick='), false);
+  assert.equal(rendered.includes('data-action="edit-cycle"'), true);
+  assert.equal(rendered.includes('data-id="abc-123"'), true);
+  assert.equal(rendered.includes('data-action="delete-cycle"'), true);
+  assert.equal(rendered.includes('Ciclo Teste &lt;script&gt;'), true);
+  assert.equal(rendered.includes('<script>'), false);
+});
+
+test('handleAction gerencia eventos via delegação de data-action e data-id', () => {
+  const testApp = loadApp();
+  testApp.db.cycles = [
+    {
+      id: 'cafe01',
+      name: 'Ciclo Ativo',
+      start: '2026-11-01',
+      status: 'active',
+      notes: '',
+      pauses: [],
+    },
+  ];
+  const pauseBtn = {
+    getAttribute(attr) {
+      if (attr === 'data-action') return 'pause-cycle';
+      if (attr === 'data-id') return 'cafe01';
+      return null;
+    },
+    closest(selector) {
+      if (selector === 'button[data-action]') return this;
+      return null;
+    },
+  };
+  testApp.handleAction({ target: pauseBtn });
+  assert.equal(testApp.db.cycles[0].status, 'paused');
+
+  const resumeBtn = {
+    getAttribute(attr) {
+      if (attr === 'data-action') return 'resume-cycle';
+      if (attr === 'data-id') return 'cafe01';
+      return null;
+    },
+    closest(selector) {
+      if (selector === 'button[data-action]') return this;
+      return null;
+    },
+  };
+  testApp.handleAction({ target: resumeBtn });
+  assert.equal(testApp.db.cycles[0].status, 'active');
+
+  const evilBtn = {
+    getAttribute(attr) {
+      if (attr === 'data-action') return 'pause-cycle';
+      if (attr === 'data-id') return '<script>alert(1)</script>';
+      return null;
+    },
+    closest(selector) {
+      if (selector === 'button[data-action]') return this;
+      return null;
+    },
+  };
+  testApp.handleAction({ target: evilBtn });
+  assert.equal(testApp.db.cycles[0].status, 'active');
+});
+
