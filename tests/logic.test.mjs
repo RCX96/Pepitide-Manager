@@ -15,7 +15,13 @@ if (!js) throw new Error('Script app.js não encontrado');
 // com o mínimo de DOM/armazenamento para o render inicial, e testamos as funções puras.
 function loadApp(initialData = null) {
   const elements = new Map();
-  const makeElement = () => ({ innerHTML: '', textContent: '', remove() {}, showModal() {}, close() {} });
+  const makeElement = () => ({
+    innerHTML: '',
+    textContent: '',
+    remove() {},
+    showModal() {},
+    close() {},
+  });
   const store = new Map();
   if (initialData) store.set('peptide-manager-v1', JSON.stringify(initialData));
   const sandbox = {
@@ -49,7 +55,10 @@ function loadApp(initialData = null) {
   vm.createContext(sandbox);
   vm.runInContext(js, sandbox, { filename: 'app.js' });
   // `db` é declarado com `let`, então não vira propriedade do sandbox; expõe um getter para os testes.
-  Object.defineProperty(sandbox, 'db', { get: () => vm.runInContext('db', sandbox), configurable: true });
+  Object.defineProperty(sandbox, 'db', {
+    get: () => vm.runInContext('db', sandbox),
+    configurable: true,
+  });
   sandbox._getStored = () => {
     const raw = store.get('peptide-manager-v1');
     return raw ? JSON.parse(raw) : null;
@@ -128,7 +137,9 @@ test('validateBackup recusa aplicação sem compostos válidos', () => {
     () =>
       app.validateBackup({
         ...base,
-        applications: [{ id: 'x', date: '2026-11-01', compounds: [{ name: 'A', dose: 0, unit: 'mg' }] }],
+        applications: [
+          { id: 'x', date: '2026-11-01', compounds: [{ name: 'A', dose: 0, unit: 'mg' }] },
+        ],
       }),
     /Compostos inválidos/,
   );
@@ -178,7 +189,14 @@ test('validateBackup recusa ciclo com identificador malicioso (XSS)', () => {
     () =>
       app.validateBackup({
         applications: [],
-        cycles: [{ id: '<img onerror=alert(1)>', name: 'Ciclo Malicioso', status: 'active', start: '2026-11-01' }],
+        cycles: [
+          {
+            id: '<img onerror=alert(1)>',
+            name: 'Ciclo Malicioso',
+            status: 'active',
+            start: '2026-11-01',
+          },
+        ],
         weights: [],
       }),
     /Ciclo inválido/,
@@ -187,7 +205,14 @@ test('validateBackup recusa ciclo com identificador malicioso (XSS)', () => {
     () =>
       app.validateBackup({
         applications: [],
-        cycles: [{ id: '\'" onmouseover=alert(1)', name: 'Ciclo Malicioso 2', status: 'active', start: '2026-11-01' }],
+        cycles: [
+          {
+            id: '\'" onmouseover=alert(1)',
+            name: 'Ciclo Malicioso 2',
+            status: 'active',
+            start: '2026-11-01',
+          },
+        ],
         weights: [],
       }),
     /Ciclo inválido/,
@@ -198,7 +223,14 @@ test('validateBackup aceita ciclo com identificador válido (hex / uuid)', () =>
   assert.equal(
     app.validateBackup({
       applications: [],
-      cycles: [{ id: 'c6fa1ff3-7e3e-4e11-a78d-7373796835b5', name: 'Ciclo Válido', status: 'active', start: '2026-11-01' }],
+      cycles: [
+        {
+          id: 'c6fa1ff3-7e3e-4e11-a78d-7373796835b5',
+          name: 'Ciclo Válido',
+          status: 'active',
+          start: '2026-11-01',
+        },
+      ],
       weights: [],
     }),
     true,
@@ -222,6 +254,43 @@ test('validateBackup recusa aplicação vinculada a cycleId inválido', () => {
       }),
     /Ciclo inválido em aplicação/,
   );
+});
+
+test('validateBackup aceita e valida o catálogo de compostos', () => {
+  assert.equal(
+    app.validateBackup({
+      applications: [],
+      cycles: [],
+      weights: [],
+      compoundCatalog: ['Semaglutida'],
+    }),
+    true,
+  );
+  assert.throws(
+    () => app.validateBackup({ applications: [], cycles: [], weights: [], compoundCatalog: [''] }),
+    /Catálogo de compostos inválido/,
+  );
+});
+
+test('aplicação pode ser duplicada para uma nova data sem alterar o original', () => {
+  const testApp = loadApp();
+  testApp.db.applications = [
+    {
+      id: 'app-1',
+      date: '2026-11-01',
+      time: '08:00',
+      site: 'Abdômen',
+      cycleId: null,
+      notes: 'Registro recorrente',
+      compounds: [{ name: 'Semaglutida', dose: 1, unit: 'mg' }],
+    },
+  ];
+  testApp.copyApp('app-1');
+  const rendered = testApp.applications();
+  assert.equal(testApp.db.applications.length, 1);
+  assert.equal(rendered.includes('Nova (cópia)'), true);
+  assert.equal(rendered.includes('value="Semaglutida"'), true);
+  assert.equal(rendered.includes('data-action="copy-app"'), true);
 });
 
 test('index.html não contém handlers onclick inline', () => {
@@ -303,4 +372,3 @@ test('handleAction gerencia eventos via delegação de data-action e data-id', (
   testApp.handleAction({ target: evilBtn });
   assert.equal(testApp.db.cycles[0].status, 'active');
 });
-

@@ -1,6 +1,13 @@
 const KEY = 'peptide-manager-v1';
 const BACKUP_META_KEY = 'peptide-manager-backup-meta-v2.2';
-const blank = () => ({ applications: [], cycles: [], weights: [], goal: null, trash: [] });
+const blank = () => ({
+  applications: [],
+  cycles: [],
+  weights: [],
+  goal: null,
+  trash: [],
+  compoundCatalog: [],
+});
 let db,
   loadError = '';
 try {
@@ -18,6 +25,7 @@ try {
 }
 let tab = 'inicio',
   editing = null,
+  appDraft = null,
   compounds = [{ name: '', dose: '', unit: 'mg' }];
 const $ = (id) => document.getElementById(id),
   esc = (x) =>
@@ -53,6 +61,33 @@ const uid = () => {
   }
   return Date.now().toString(16) + '-' + Math.floor(Math.random() * 0xffffffff).toString(16);
 };
+function uniqueCompoundNames(names) {
+  const result = [];
+  const seen = new Set();
+  for (const value of names) {
+    const name = String(value ?? '').trim();
+    const key = name.toLocaleLowerCase('pt-BR');
+    if (name && !seen.has(key)) {
+      seen.add(key);
+      result.push(name);
+    }
+  }
+  return result.slice(0, 200);
+}
+function rememberedCompoundNames() {
+  return uniqueCompoundNames([
+    ...(Array.isArray(db.compoundCatalog) ? db.compoundCatalog : []),
+    ...db.applications.flatMap((a) => (a.compounds || []).map((c) => c.name)),
+  ]);
+}
+function rememberCompoundNames(names) {
+  db.compoundCatalog = uniqueCompoundNames([...(db.compoundCatalog || []), ...names]);
+}
+function compoundNameList() {
+  return `<datalist id="compoundNames">${rememberedCompoundNames()
+    .map((name) => `<option value="${esc(name)}"></option>`)
+    .join('')}</datalist>`;
+}
 const button = (label, action, id = '', cls = '', extra = '') =>
   `<button type="button" class="${cls}" data-action="${action}"${id !== '' && id !== null && id !== undefined ? ` data-id="${esc(id)}"` : ''}${extra}>${label}</button>`;
 const navs = [
@@ -271,7 +306,7 @@ function compoundFields() {
   return compounds
     .map(
       (c, i) =>
-        `<div class="item"><div class="row between"><b>Composto ${i + 1}</b>${compounds.length > 1 ? button('Remover', 'remove-compound', i, 'danger') : ''}</div><label>Nome</label><input value="${esc(c.name)}" oninput="compounds[${i}].name=this.value" placeholder="Nome do composto"><div class="two"><div><label>Dose</label><input type="number" min="0" step="any" value="${esc(c.dose)}" oninput="compounds[${i}].dose=this.value" placeholder="Ex.: 1.5"></div><div><label>Unidade</label><select onchange="compounds[${i}].unit=this.value">${['mg', 'mcg', 'mL', 'UI'].map((u) => `<option ${c.unit === u ? 'selected' : ''}>${u}</option>`).join('')}</select></div></div></div>`,
+        `<div class="item"><div class="row between"><b>Composto ${i + 1}</b>${compounds.length > 1 ? button('Remover', 'remove-compound', i, 'danger') : ''}</div><label>Nome</label><input list="compoundNames" value="${esc(c.name)}" oninput="compounds[${i}].name=this.value" placeholder="Nome do composto"><div class="two"><div><label>Dose</label><input type="number" min="0" step="any" value="${esc(c.dose)}" oninput="compounds[${i}].dose=this.value" placeholder="Ex.: 1.5"></div><div><label>Unidade</label><select onchange="compounds[${i}].unit=this.value">${['mg', 'mcg', 'mL', 'UI'].map((u) => `<option ${c.unit === u ? 'selected' : ''}>${u}</option>`).join('')}</select></div></div></div>`,
     )
     .join('');
 }
@@ -285,18 +320,34 @@ function removeCompound(i) {
 }
 function editApp(id) {
   const a = db.applications.find((x) => x.id === id);
+  if (!a) {
+    return;
+  }
   editing = id;
+  appDraft = null;
   compounds = a.compounds.map((c) => ({ ...c }));
+  render();
+}
+function copyApp(id) {
+  const a = db.applications.find((x) => x.id === id);
+  if (!a) {
+    return;
+  }
+  editing = null;
+  appDraft = { ...a, id: null, date: today(), compounds: a.compounds.map((c) => ({ ...c })) };
+  compounds = appDraft.compounds.map((c) => ({ ...c }));
   render();
 }
 function resetApp() {
   editing = null;
+  appDraft = null;
   compounds = [{ name: '', dose: '', unit: 'mg' }];
   render();
 }
 function applications() {
-  const a = editing ? db.applications.find((x) => x.id === editing) : null;
-  return `<h1>Aplicações</h1><div class="panel"><h2>${a ? 'Editar' : 'Nova'} aplicação • uma seringa</h2><form id="appForm" onsubmit="submitApp(event)"><div class="two"><div><label>Data</label><input name="date" type="date" required value="${a?.date || today()}"></div><div><label>Horário (opcional)</label><input name="time" type="time" value="${a?.time || ''}"></div></div><label>Local da aplicação</label><select name="site">${['Abdômen', 'Coxa', 'Braço', 'Outro', 'Não informado'].map((s) => `<option ${a?.site === s ? 'selected' : ''}>${s}</option>`).join('')}</select><label>Ciclo (opcional)</label><select name="cycleId"><option value="">Sem ciclo</option>${db.cycles
+  const a = editing ? db.applications.find((x) => x.id === editing) : appDraft;
+  const mode = editing ? 'Editar' : appDraft ? 'Nova (cópia)' : 'Nova';
+  return `<h1>Aplicações</h1><div class="panel"><h2>${mode} aplicação • uma seringa</h2><form id="appForm" onsubmit="submitApp(event)"><div class="two"><div><label>Data</label><input name="date" type="date" required value="${a?.date || today()}"></div><div><label>Horário (opcional)</label><input name="time" type="time" value="${a?.time || ''}"></div></div><label>Local da aplicação</label><select name="site">${['Abdômen', 'Coxa', 'Braço', 'Outro', 'Não informado'].map((s) => `<option ${a?.site === s ? 'selected' : ''}>${s}</option>`).join('')}</select><label>Ciclo (opcional)</label><select name="cycleId"><option value="">Sem ciclo</option>${db.cycles
     .filter((c) => CYCLE_ID_RE.test(c.id))
     .map(
       (c) =>
@@ -304,14 +355,14 @@ function applications() {
     )
     .join(
       '',
-    )}</select><div id="compoundList">${compoundFields()}</div>${button('+ Adicionar composto', 'add-compound')}<label>Observações</label><textarea name="notes" placeholder="Observações opcionais">${esc(a?.notes || '')}</textarea><p class="warning">Compostos no mesmo registro representam a mesma seringa. O aplicativo não verifica compatibilidade.</p><div class="row actions"><button class="primary" type="submit">${a ? 'Salvar alterações' : 'Salvar aplicação'}</button>${a ? button('Cancelar', 'cancel-app') : ''}</div></form></div><div class="panel"><h2>Histórico de aplicações</h2>${
+    )}</select>${compoundNameList()}<div id="compoundList">${compoundFields()}</div>${button('+ Adicionar composto', 'add-compound')}<label>Observações</label><textarea name="notes" placeholder="Observações opcionais">${esc(a?.notes || '')}</textarea><p class="muted">Os nomes dos compostos ficam salvos neste navegador e aparecem como sugestões na próxima aplicação.</p><p class="warning">Compostos no mesmo registro representam a mesma seringa. O aplicativo não verifica compatibilidade.</p><div class="row actions"><button class="primary" type="submit">${a ? 'Salvar alterações' : 'Salvar aplicação'}</button>${a ? button('Cancelar', 'cancel-app') : ''}</div></form></div><div class="panel"><h2>Histórico de aplicações</h2>${
     db.applications.length
       ? db.applications
           .slice()
           .sort((a, b) => b.date.localeCompare(a.date))
           .map(
             (x) =>
-              `<div class="item"><div class="row between"><b>${dateFmt(x.date)} ${esc(x.time || '')}</b><span class="muted">${esc(x.site)}</span></div><p>${x.compounds.map((c) => `${esc(c.name)} (${esc(c.dose)} ${esc(c.unit)})`).join(' + ')}</p><p class="muted">${esc(db.cycles.find((c) => c.id === x.cycleId)?.name || 'Sem ciclo')} ${x.notes ? '• ' + esc(x.notes) : ''}</p><div class="row">${button('Editar', 'edit-app', x.id)}${button('Excluir', 'delete-app', x.id, 'danger')}</div></div>`,
+              `<div class="item"><div class="row between"><b>${dateFmt(x.date)} ${esc(x.time || '')}</b><span class="muted">${esc(x.site)}</span></div><p>${x.compounds.map((c) => `${esc(c.name)} (${esc(c.dose)} ${esc(c.unit)})`).join(' + ')}</p><p class="muted">${esc(db.cycles.find((c) => c.id === x.cycleId)?.name || 'Sem ciclo')} ${x.notes ? '• ' + esc(x.notes) : ''}</p><div class="row">${button('Duplicar', 'copy-app', x.id)}${button('Editar', 'edit-app', x.id)}${button('Excluir', 'delete-app', x.id, 'danger')}</div></div>`,
           )
           .join('')
       : '<p class="empty">Nenhuma aplicação registrada.</p>'
@@ -350,7 +401,9 @@ function submitApp(e) {
   } else {
     db.applications.push(item);
   }
+  rememberCompoundNames(compounds.map((c) => c.name));
   editing = null;
+  appDraft = null;
   compounds = [{ name: '', dose: '', unit: 'mg' }];
   save();
 }
@@ -710,9 +763,19 @@ function validateBackup(d) {
     !d ||
     typeof d !== 'object' ||
     !['applications', 'cycles', 'weights'].every((k) => Array.isArray(d[k])) ||
-    (d.trash !== undefined && !Array.isArray(d.trash))
+    (d.trash !== undefined && !Array.isArray(d.trash)) ||
+    (d.compoundCatalog !== undefined && !Array.isArray(d.compoundCatalog))
   ) {
     throw Error('Estrutura do backup inválida');
+  }
+  if (
+    d.compoundCatalog &&
+    (d.compoundCatalog.length > 200 ||
+      !d.compoundCatalog.every(
+        (name) => typeof name === 'string' && name.trim() && name.length <= 120,
+      ))
+  ) {
+    throw Error('Catálogo de compostos inválido');
   }
   if (d.goal !== null && d.goal !== undefined && (!Number.isFinite(d.goal) || d.goal <= 0)) {
     throw Error('Meta inválida');
@@ -1160,6 +1223,11 @@ function handleAction(e) {
     case 'edit-app':
       if (id) {
         editApp(id);
+      }
+      break;
+    case 'copy-app':
+      if (id) {
+        copyApp(id);
       }
       break;
     case 'delete-app':
