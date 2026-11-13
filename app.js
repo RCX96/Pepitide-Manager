@@ -115,6 +115,22 @@ function syncNav() {
     b.classList.toggle('active', b.getAttribute('data-id') === tab);
   }
 }
+function animateRender() {
+  const app = $('app');
+  if (!app || typeof app.querySelectorAll !== 'function') {
+    return;
+  }
+  const nodes = app.querySelectorAll('.panel, .metric, .item, .calendar-day');
+  nodes.forEach((node, index) => {
+    node.classList.add('reveal');
+    const show = () => node.classList.add('is-visible');
+    if (typeof requestAnimationFrame === 'function') {
+      requestAnimationFrame(() => setTimeout(show, Math.min(index * 28, 240)));
+    } else {
+      show();
+    }
+  });
+}
 function render() {
   if (loadError) {
     $('bottom-nav').innerHTML = '';
@@ -133,6 +149,7 @@ function render() {
     relatorios: reports,
     dados: dataPage,
   }[tab]();
+  animateRender();
 }
 function confirmDelete(type, id) {
   if (type === 'cycles' && (!id || !CYCLE_ID_RE.test(id))) {
@@ -1342,6 +1359,32 @@ function handleAction(e) {
       break;
   }
 }
+function setupVisualEffects() {
+  if (typeof document === 'undefined' || typeof document.addEventListener !== 'function') {
+    return;
+  }
+  document.addEventListener('pointerdown', (e) => {
+    const target =
+      e.target && typeof e.target.closest === 'function' ? e.target.closest('button') : null;
+    if (!target || typeof target.getBoundingClientRect !== 'function') {
+      return;
+    }
+    const rect = target.getBoundingClientRect();
+    const ripple = document.createElement('span');
+    ripple.className = 'ripple';
+    ripple.style.left = `${e.clientX - rect.left}px`;
+    ripple.style.top = `${e.clientY - rect.top}px`;
+    target.appendChild(ripple);
+    setTimeout(() => ripple.remove(), 650);
+  });
+  document.addEventListener('pointermove', (e) => {
+    if (document.documentElement && e.clientX !== undefined) {
+      document.documentElement.style.setProperty('--pointer-x', `${e.clientX}px`);
+      document.documentElement.style.setProperty('--pointer-y', `${e.clientY}px`);
+    }
+  });
+}
+setupVisualEffects();
 if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
   document.addEventListener('click', handleAction);
 } else if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
