@@ -60,8 +60,8 @@ O deploy é feito pela Vercel a partir da branch `main`. Alterações entram por
 ## Versionamento
 
 - `index.html` exibe a versão no cabeçalho.
-- Cada versão publicada recebe uma tag e uma release no GitHub (`v2.3`, por exemplo).
-- O cache do service worker usa o mesmo número (`peptide-manager-shell-v2.3`); ao publicar, atualize a constante `CACHE` para invalidar o cache antigo.
+- Cada versão publicada recebe uma tag e uma release no GitHub (`v2.4`, por exemplo).
+- O cache do service worker usa o mesmo número (`peptide-manager-shell-v2.4`); ao publicar, atualize a constante `CACHE` para invalidar o cache antigo.
 
 ## Limitações conhecidas
 
