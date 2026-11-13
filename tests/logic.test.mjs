@@ -272,6 +272,21 @@ test('validateBackup aceita e valida o catálogo de compostos', () => {
   );
 });
 
+test('validateBackup aceita lembretes e recusa repetição inválida', () => {
+  const base = { applications: [], cycles: [], weights: [] };
+  assert.equal(
+    app.validateBackup({
+      ...base,
+      reminders: [{ id: 'r1', compoundName: 'Semaglutida', date: '2026-11-13', repeat: 'weekly', active: true }],
+    }),
+    true,
+  );
+  assert.throws(
+    () => app.validateBackup({ ...base, reminders: [{ id: 'r1', compoundName: 'A', date: '2026-11-13', repeat: 'monthly' }] }),
+    /Lembrete inválido/,
+  );
+});
+
 test('aplicação pode ser duplicada para uma nova data sem alterar o original', () => {
   const testApp = loadApp();
   testApp.db.applications = [

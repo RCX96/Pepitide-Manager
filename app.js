@@ -7,6 +7,7 @@ const blank = () => ({
   goal: null,
   trash: [],
   compoundCatalog: [],
+  reminders: [],
 });
 let db,
   loadError = '';
@@ -131,6 +132,74 @@ function removeCompoundName(name) {
   db.compoundCatalog = (db.compoundCatalog || []).filter((n) => n !== name);
   save();
 }
+let historyCompound = '';
+function reminderMatchesDate(reminder, date) {
+  if (!reminder || !reminder.active || !strictDate(date) || !strictDate(reminder.date)) {
+    return false;
+  }
+  if (reminder.date === date) {
+    return true;
+  }
+  if (reminder.repeat === 'daily') {
+    return date >= reminder.date;
+  }
+  if (reminder.repeat === 'weekly') {
+    const start = new Date(reminder.date + 'T12:00:00Z');
+    const current = new Date(date + 'T12:00:00Z');
+    return current >= start && Math.round((current - start) / 86400000) % 7 === 0;
+  }
+  return false;
+}
+function remindersOnDate(date) {
+  return (db.reminders || []).filter((r) => reminderMatchesDate(r, date));
+}
+function saveReminder(e) {
+  e.preventDefault();
+  const f = new FormData(e.target);
+  const item = {
+    id: uid(),
+    compoundName: String(f.get('compoundName') || '').trim(),
+    date: f.get('date'),
+    time: f.get('time') || '',
+    repeat: f.get('repeat') || 'none',
+    active: true,
+  };
+  if (!item.compoundName || !strictDate(item.date)) {
+    return alert('Informe composto e data válidos.');
+  }
+  db.reminders = Array.isArray(db.reminders) ? db.reminders : [];
+  db.reminders.push(item);
+  rememberCompoundNames([item.compoundName]);
+  save();
+}
+function deleteReminder(id) {
+  db.reminders = (db.reminders || []).filter((r) => r.id !== id);
+  save();
+}
+function quickRegister() {
+  const latest = db.applications
+    .slice()
+    .sort((a, b) => `${b.date}${b.time || ''}`.localeCompare(`${a.date}${a.time || ''}`))[0];
+  if (latest) {
+    return copyApp(latest.id);
+  }
+  setTab('aplicacoes');
+}
+function compoundHistory(name) {
+  const key = String(name || '')
+    .trim()
+    .toLocaleLowerCase('pt-BR');
+  return db.applications
+    .filter((a) =>
+      (a.compounds || []).some(
+        (c) =>
+          String(c.name || '')
+            .trim()
+            .toLocaleLowerCase('pt-BR') === key,
+      ),
+    )
+    .sort((a, b) => b.date.localeCompare(a.date));
+}
 async function hashText(value) {
   if (crypto?.subtle) {
     const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
@@ -203,6 +272,13 @@ function syncNav() {
   }
 }
 function extraPanels() {
+  if (tab === 'inicio') {
+    const upcoming = (db.reminders || [])
+      .filter((r) => r.active && r.date >= today())
+      .sort((a, b) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`))
+      .slice(0, 5);
+    return `<div class="panel"><div class="row between"><h2>PrÃ³ximas aplicaÃ§Ãµes</h2>${button('Novo lembrete', 'new-reminder', '', 'primary')}</div>${upcoming.length ? upcoming.map((r) => `<div class="item"><div class="row between"><b>${esc(r.compoundName)}</b><span class="pill">${dateFmt(r.date)}${r.time ? ' â€¢ ' + esc(r.time) : ''}</span></div><p class="muted">${r.repeat === 'daily' ? 'Todos os dias' : r.repeat === 'weekly' ? 'Semanal' : 'Uma vez'}</p><div class="row">${button('Registrar agora', 'quick-reminder', r.id)}${button('Excluir', 'delete-reminder', r.id, 'danger')}</div></div>`).join('') : '<p class="empty">Nenhum lembrete ativo.</p>'}</div>`;
+  }
   if (tab === 'aplicacoes') {
     return `<div class="panel quick-filter"><h2>Buscar aplicações</h2><input id="applicationSearch" type="search" value="${esc(applicationFilter)}" placeholder="Composto, data, local ou observação" oninput="setApplicationFilter(this.value)"></div>`;
   }
@@ -232,6 +308,27 @@ function animateRender() {
     }
   });
 }
+function applicationsExtraPanel() {
+  const names = rememberedCompoundNames();
+  const history = historyCompound ? compoundHistory(historyCompound) : [];
+  return `<div class="panel"><h2>HistÃ³rico por composto</h2><select onchange="historyCompound=this.value;render()"><option value="">Escolha um composto</option>${names.map((n) => `<option value="${esc(n)}" ${historyCompound === n ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select>${historyCompound ? (history.length ? history.map((a) => `<div class="item"><b>${dateFmt(a.date)} ${esc(a.time || '')}</b><p>${a.compounds.map((c) => `${esc(c.name)} (${esc(c.dose)} ${esc(c.unit)})`).join(' + ')}</p><p class="muted">${esc(a.site || '')}</p></div>`).join('') : '<p class="empty">Nenhum registro para este composto.</p>') : '<p class="muted">Veja todas as aplicaÃ§Ãµes de um composto.</p>'}</div>`;
+}
+function reminderFormPanel() {
+  return `<div class="panel"><h2>Novo lembrete</h2><form onsubmit="saveReminder(event)">${compoundNameList()}<label>Composto</label><input name="compoundName" list="compoundNames" required placeholder="Nome do composto"><div class="two"><div><label>Data inicial</label><input name="date" type="date" value="${today()}" required></div><div><label>HorÃ¡rio</label><input name="time" type="time"></div></div><label>RepetiÃ§Ã£o</label><select name="repeat"><option value="none">Uma vez</option><option value="daily">Todos os dias</option><option value="weekly">Toda semana</option></select><div class="row actions"><button class="primary" type="submit">Salvar lembrete</button></div></form></div>`;
+}
+function calendarExtraPanel() {
+  const planned = remindersOnDate(calendarSelected);
+  return `<div class="panel"><h2>Lembretes de ${dateFmt(calendarSelected)}</h2>${planned.length ? planned.map((r) => `<div class="item"><div class="row between"><b>${esc(r.compoundName)}</b><span>${esc(r.time || 'HorÃ¡rio nÃ£o definido')}</span></div><div class="row">${button('Registrar agora', 'quick-reminder', r.id)}</div></div>`).join('') : '<p class="empty">Nenhum lembrete para este dia.</p>'}</div>`;
+}
+function encryptedBackupPanel() {
+  return `<div class="panel"><h2>Backup criptografado</h2><p class="muted">Protege o arquivo com AES-256-GCM. A senha não fica salva no aplicativo.</p><div class="row">${button('Exportar criptografado', 'export-encrypted', '', 'primary')}${button('Importar criptografado', 'import-encrypted')}</div></div>`;
+}
+function appendRendered(html) {
+  const app = $('app');
+  if (app && typeof app.insertAdjacentHTML === 'function') {
+    app.insertAdjacentHTML('beforeend', html);
+  }
+}
 function render() {
   if (!unlocked) {
     $('bottom-nav').innerHTML = '';
@@ -257,7 +354,20 @@ function render() {
     dados: dataPage,
   }[tab]();
   if (tab === 'aplicacoes' || tab === 'dados') {
-    $('app').insertAdjacentHTML('beforeend', extraPanels());
+    appendRendered(extraPanels());
+  }
+  if (tab === 'aplicacoes') {
+    appendRendered(applicationsExtraPanel());
+  }
+  if (tab === 'inicio') {
+    appendRendered(extraPanels());
+    appendRendered(reminderFormPanel());
+  }
+  if (tab === 'calendario') {
+    appendRendered(calendarExtraPanel());
+  }
+  if (tab === 'dados') {
+    appendRendered(encryptedBackupPanel());
   }
   animateRender();
 }
@@ -891,9 +1001,23 @@ function validateBackup(d) {
     typeof d !== 'object' ||
     !['applications', 'cycles', 'weights'].every((k) => Array.isArray(d[k])) ||
     (d.trash !== undefined && !Array.isArray(d.trash)) ||
-    (d.compoundCatalog !== undefined && !Array.isArray(d.compoundCatalog))
+    (d.compoundCatalog !== undefined && !Array.isArray(d.compoundCatalog)) ||
+    (d.reminders !== undefined && !Array.isArray(d.reminders))
   ) {
     throw Error('Estrutura do backup inválida');
+  }
+  for (const r of d.reminders || []) {
+    if (
+      !r ||
+      typeof r.id !== 'string' ||
+      !r.id ||
+      !strictDate(r.date) ||
+      typeof r.compoundName !== 'string' ||
+      !r.compoundName.trim() ||
+      !['none', 'daily', 'weekly'].includes(r.repeat || 'none')
+    ) {
+      throw Error('Lembrete inválido');
+    }
   }
   if (
     d.compoundCatalog &&
@@ -1113,6 +1237,104 @@ async function exportData() {
     alert('Backup não gerado: ' + e.message);
   }
 }
+function bytesToBase64(bytes) {
+  let text = '';
+  for (const byte of bytes) {
+    text += String.fromCharCode(byte);
+  }
+  return btoa(text);
+}
+function base64ToBytes(value) {
+  return Uint8Array.from(atob(value), (c) => c.charCodeAt(0));
+}
+async function deriveBackupKey(password, salt) {
+  const material = await crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(password),
+    'PBKDF2',
+    false,
+    ['deriveKey'],
+  );
+  return crypto.subtle.deriveKey(
+    { name: 'PBKDF2', salt, iterations: 120000, hash: 'SHA-256' },
+    material,
+    { name: 'AES-GCM', length: 256 },
+    false,
+    ['encrypt', 'decrypt'],
+  );
+}
+async function exportEncryptedData() {
+  try {
+    const password = prompt('Defina uma senha para criptografar este backup:');
+    if (!password || password.length < 6) {
+      return alert('Use uma senha com pelo menos 6 caracteres.');
+    }
+    const { blob, filename } = await makeBackupFile();
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const key = await deriveBackupKey(password, salt);
+    const cipher = await crypto.subtle.encrypt(
+      { name: 'AES-GCM', iv },
+      key,
+      await blob.arrayBuffer(),
+    );
+    const payload = {
+      app: 'Peptide Manager',
+      version: 3,
+      encrypted: true,
+      algorithm: 'AES-256-GCM',
+      kdf: 'PBKDF2-SHA-256',
+      salt: bytesToBase64(salt),
+      iv: bytesToBase64(iv),
+      data: bytesToBase64(new Uint8Array(cipher)),
+    };
+    const encryptedName = filename.replace('.json', '.encrypted.json');
+    downloadBackupBlob(
+      new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }),
+      encryptedName,
+    );
+    alert('Backup criptografado gerado. Guarde a senha separadamente.');
+  } catch (e) {
+    alert('Backup criptografado nÃ£o gerado: ' + e.message);
+  }
+}
+async function importEncryptedData() {
+  const file = $('restoreFile').files[0];
+  if (!file) {
+    return alert('Selecione um arquivo criptografado.');
+  }
+  try {
+    const payload = JSON.parse(await file.text());
+    if (!payload.encrypted || payload.algorithm !== 'AES-256-GCM') {
+      throw Error('Arquivo criptografado invÃ¡lido');
+    }
+    const password = prompt('Digite a senha deste backup:');
+    if (!password) {
+      return;
+    }
+    const key = await deriveBackupKey(password, base64ToBytes(payload.salt));
+    const plain = await crypto.subtle.decrypt(
+      { name: 'AES-GCM', iv: base64ToBytes(payload.iv) },
+      key,
+      base64ToBytes(payload.data),
+    );
+    const obj = JSON.parse(new TextDecoder().decode(plain));
+    validateBackup(obj.data);
+    if (
+      !confirm(
+        `Backup descriptografado: ${obj.data.applications.length} aplicações, ${obj.data.cycles.length} ciclos e ${obj.data.weights.length} pesagens. Substituir os dados atuais?`,
+      )
+    ) {
+      return;
+    }
+    localStorage.setItem(KEY + '-pre-restore', JSON.stringify(db));
+    db = { ...blank(), ...obj.data };
+    save();
+    alert('Backup criptografado restaurado.');
+  } catch (e) {
+    alert('NÃ£o foi possÃ­vel abrir o backup criptografado. Verifique a senha e o arquivo.');
+  }
+}
 async function shareBackup() {
   try {
     const { blob, filename } = await makeBackupFile();
@@ -1329,11 +1551,45 @@ function handleAction(e) {
         setTab(id);
       }
       break;
+    case 'new-reminder':
+      setTab('inicio');
+      break;
+    case 'quick-register':
+      quickRegister();
+      break;
+    case 'quick-reminder': {
+      const reminder = (db.reminders || []).find((r) => r.id === id);
+      if (reminder) {
+        appDraft = {
+          id: null,
+          date: today(),
+          time: reminder.time,
+          site: 'Não informado',
+          cycleId: null,
+          notes: 'Registrado a partir de lembrete',
+          compounds: [{ name: reminder.compoundName, dose: '', unit: 'mg' }],
+        };
+        compounds = appDraft.compounds.map((c) => ({ ...c }));
+        setTab('aplicacoes');
+      }
+      break;
+    }
+    case 'delete-reminder':
+      if (id && confirm('Excluir este lembrete?')) {
+        deleteReminder(id);
+      }
+      break;
     case 'export-data':
       exportData();
       break;
     case 'share-backup':
       shareBackup();
+      break;
+    case 'export-encrypted':
+      exportEncryptedData();
+      break;
+    case 'import-encrypted':
+      importEncryptedData();
       break;
     case 'verify-local':
       verifyLocalData();
