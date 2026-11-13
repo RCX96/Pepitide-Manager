@@ -1,0 +1,26 @@
+{
+  "id": "./",
+  "name": "Peptide Manager",
+  "short_name": "Peptide",
+  "description": "Registro pessoal de aplicações, ciclos e peso",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#031a21",
+  "theme_color": "#052b39",
+  "lang": "pt-BR",
+  "icons": [
+    {
+      "src": "./icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "./icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
