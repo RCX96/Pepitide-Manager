@@ -428,3 +428,22 @@ test('lastCompoundEntry retorna a última entrada de um composto', () => {
   ];
   assert.equal(app.lastCompoundEntry('Semaglutida').dose, 1.5);
 });
+
+test('homeCalendar mostra os compostos de cada dia e gera acesso rápido por data', () => {
+  app.db.applications = [
+    { date: '2026-11-01', time: '08:00', site: 'Abdômen', compounds: [{ name: 'Semaglutida', dose: 1, unit: 'mg' }] },
+    { date: '2026-11-01', time: '09:00', site: 'Coxa', compounds: [{ name: 'Liraglutida', dose: 0.5, unit: 'mg' }] },
+    { date: '2026-11-02', time: '08:30', site: 'Braço', compounds: [{ name: 'Semaglutida', dose: 1, unit: 'mg' }] },
+  ];
+  const html = app.homeCalendar();
+  assert.match(html, /data-action="quick-register-date"/);
+  assert.match(html, /data-id="2026-11-01"/);
+  assert.match(html, /data-id="2026-11-02"/);
+
+  // O mês de 01/11 contém os dois compostos (duas aplicações na mesma data);
+  // o dia 02 contém apenas o Semaglutida.
+  assert.match(html, /data-id="2026-11-01"[\s\S]*?Semaglutida/);
+  assert.match(html, /data-id="2026-11-01"[\s\S]*?Liraglutida/);
+  assert.match(html, /data-id="2026-11-02"[\s\S]*?Semaglutida/);
+});
+
