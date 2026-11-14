@@ -191,36 +191,77 @@ label {
 #bottom-nav {
   position: fixed;
   bottom: 16px;
-  left: 50%;
+  left: 10px;
+  right: 10px;
   z-index: 40;
   display: flex;
-  justify-content: center;
-  width: min(1060px, calc(100% - 24px));
-  gap: 5px;
-  padding: 9px;
+  justify-content: flex-start;
+  width: auto;
+  gap: 6px;
+  padding: 8px;
   border: 1px solid rgba(148, 163, 184, 0.2);
-  border-radius: 20px;
-  background: rgba(10, 21, 37, 0.78);
+  border-radius: 16px;
+  background: rgba(10, 21, 37, 0.82);
   box-shadow:
     0 18px 50px rgba(0, 0, 0, 0.35),
     0 0 0 1px rgba(255, 255, 255, 0.03) inset;
   backdrop-filter: blur(18px);
-  transform: translateX(-50%);
+  transform: none;
 }
 #bottom-nav button {
-  min-width: 64px;
-  padding: 10px 12px;
+  min-width: 58px;
+  padding: 8px 10px;
   color: var(--muted);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
   background: transparent;
   border-color: transparent;
+  border-radius: 10px;
 }
 #bottom-nav button.active {
   color: #07151e !important;
   border-color: transparent !important;
   background: linear-gradient(135deg, var(--accent), #b6fff1) !important;
   box-shadow: 0 0 24px rgba(98, 230, 213, 0.32);
+}
+.footer-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.footer-actions button {
+  padding: 7px 15px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  background: transparent;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 99px;
+  cursor: pointer;
+  transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+}
+.footer-actions button:hover {
+  color: #fff;
+  border-color: rgba(98, 230, 213, 0.55);
+  background: rgba(98, 230, 213, 0.08);
+}
+.footer-actions button.active {
+  color: #07151e !important;
+  border-color: transparent !important;
+  background: linear-gradient(135deg, var(--accent), #b6fff1) !important;
+  box-shadow: 0 0 24px rgba(98, 230, 213, 0.32);
+}
+footer .footer-backup {
+  margin-bottom: 12px;
+}
+footer .footer-backup button {
+  padding: 7px 13px;
+  color: var(--muted);
+  font-size: 12px;
+  background: transparent;
+  border-radius: 99px;
 }
 .panel {
   margin-bottom: 18px;
