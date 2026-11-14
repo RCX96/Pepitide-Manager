@@ -205,7 +205,7 @@ label {
   right: auto;
   z-index: 40;
   display: flex;
-  justify-content: center;
+  justify-content: flex-start;
   width: max-content;
   max-width: calc(100% - 20px);
   gap: 6px;
@@ -512,7 +512,7 @@ textarea {
 .cal-cell {
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  justify-content: flex-start;
   align-items: center;
   min-height: 56px;
   padding: 6px 5px;
@@ -540,20 +540,37 @@ textarea {
   line-height: 1.1;
 }
 .cal-compounds {
+  width: 100%;
   display: flex;
+  flex-direction: column;
   flex-wrap: wrap;
   gap: 4px;
-  align-items: center;
+  align-items: stretch;
   margin-top: 3px;
   font-size: 10px;
   color: var(--accent-strong);
 }
 .cal-compounds span {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  color: #07151e;
+  font-size: 9px;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   padding: 2px 7px;
   border-radius: 99px;
-  background: rgba(98, 230, 213, 0.16);
-  border: 1px solid var(--accent);
-  font-weight: 600;
+  background: #ffcf70;
+  border: 0;
+  font-weight: 800;
+}
+.calendar-month-title {
+  margin: -8px 0 10px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: capitalize;
 }
 .cal-cell.today .cal-day-number {
   box-shadow: inset 0 0 0 1px var(--violet);
@@ -658,14 +675,16 @@ dialog .warning {
     bottom: 9px;
     width: calc(100% - 14px);
     max-width: none;
-    overflow-x: auto;
-    justify-content: flex-start;
+    overflow: hidden;
+    justify-content: center;
     transform: none;
   }
   #bottom-nav button {
-    min-width: 62px;
+    flex: 1 1 0;
+    min-width: 0;
     padding-inline: 5px;
     font-size: 10px;
+    white-space: nowrap;
   }
 }
 @media (max-width: 480px) {
@@ -685,6 +704,16 @@ dialog .warning {
   }
   .calendar-grid {
     gap: 3px;
+  }
+  .cal-cell {
+    min-height: 62px;
+    padding: 5px 3px;
+  }
+  .cal-compounds {
+    gap: 2px;
+  }
+  .cal-compounds span {
+    font-size: 8px;
   }
   .calendar-count {
     padding: 2px 5px;

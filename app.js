@@ -597,7 +597,7 @@ function homeCalendar() {
       ? `<span class="cal-compounds">${names.map((n) => `<span>${esc(n)}</span>`).join('')}</span>`
       : '';
     cells += `
-      <button class="cal-cell" data-action="quick-register-date" data-id="${date}" aria-label="Registrar aplicação em ${dateFmt(date)}">
+      <button class="cal-cell" data-action="quick-register-date" data-id="${date}" aria-label="${names.length ? `${dateFmt(date)}: ${names.join(', ')}` : `Registrar aplicação em ${dateFmt(date)}`} ">
         <span class="cal-day-number">${number}</span>
         ${compounds}
       </button>`;
@@ -610,6 +610,7 @@ function homeCalendar() {
   return `
     <div class="panel">
       <h2>Calendário de aplicações</h2>
+      <p class="calendar-month-title">${monthTitle}</p>
       <p class="muted">Registros do mês. Clique em um dia para cadastrar aplicação na data indicada.</p>
       <div class="calendar-grid">${weekdayHTML}</div>
       <div class="calendar-grid">${cells}</div>
