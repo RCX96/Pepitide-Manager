@@ -387,9 +387,6 @@ function render() {
     relatorios: reports,
     dados: dataPage,
   }[tab]();
-  if (tab === 'inicio') {
-    $('app').innerHTML = calendarPage() + $('app').innerHTML;
-  }
   if (tab === 'aplicacoes' || tab === 'dados') {
     appendRendered(extraPanels());
   }
