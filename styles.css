@@ -707,7 +707,7 @@ dialog .warning {
   }
   .calendar-grid {
     grid-template-columns: repeat(7, minmax(0, 1fr));
-    grid-auto-rows: 92px;
+    grid-auto-rows: 58px;
     align-items: start;
     max-width: 100%;
     padding: 0;
@@ -715,9 +715,9 @@ dialog .warning {
   }
   .calendar-grid .calendar-day,
   .calendar-grid .calendar-empty {
-    height: 92px;
+    height: 58px;
     min-height: 0;
-    padding: 4px 2px;
+    padding: 3px 2px;
     overflow: hidden;
     align-self: start;
   }
@@ -730,16 +730,33 @@ dialog .warning {
   }
   .cal-compounds {
     gap: 1px;
+    max-height: 35px;
+    overflow: hidden;
   }
   .cal-compounds span {
+    max-width: 100%;
     padding: 1px 2px;
-    font-size: 6px;
+    overflow: hidden;
+    font-size: 5px;
+    line-height: 1;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .calendar-count {
-    max-height: 58px;
+    max-height: 35px;
+    gap: 1px;
     overflow: hidden;
-    padding: 2px 5px;
+    padding: 0;
     font-size: 9px;
+  }
+  .calendar-compound {
+    max-width: 100%;
+    padding: 1px 2px;
+    overflow: hidden;
+    font-size: 5px;
+    line-height: 1;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 }
 @media (prefers-reduced-motion: reduce) {
