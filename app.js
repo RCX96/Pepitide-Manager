@@ -31,7 +31,8 @@ let tab = 'inicio',
   appDraft = null,
   compounds = [{ name: '', dose: '', unit: 'mg' }],
   applicationFilter = '',
-  catalogFilter = '';
+  catalogFilter = '',
+  suppressHomeCalendar = false;
 const LOCK_KEY = 'peptide-manager-lock-v1';
 let unlocked = !localStorage.getItem(LOCK_KEY);
 const $ = (id) => document.getElementById(id),
@@ -378,6 +379,7 @@ function render() {
     return;
   }
   $('bottom-nav').innerHTML = navHTML();
+  suppressHomeCalendar = tab === 'inicio';
   $('app').innerHTML = {
     inicio: home,
     aplicacoes: applications,
@@ -387,6 +389,10 @@ function render() {
     relatorios: reports,
     dados: dataPage,
   }[tab]();
+  suppressHomeCalendar = false;
+  if (tab === 'inicio') {
+    $('app').innerHTML = calendarPage() + $('app').innerHTML;
+  }
   if (tab === 'aplicacoes' || tab === 'dados') {
     appendRendered(extraPanels());
   }
@@ -569,6 +575,9 @@ function calendarPage() {
 }
 
 function homeCalendar() {
+  if (suppressHomeCalendar) {
+    return '';
+  }
   const [y, m] = today().split('-').map(Number);
   const start = new Date(Date.UTC(y, m - 1, 1, 12));
   const length = new Date(Date.UTC(y, m, 0, 12)).getUTCDate();
