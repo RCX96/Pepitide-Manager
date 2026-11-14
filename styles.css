@@ -441,6 +441,55 @@ textarea {
   border-radius: 99px;
   background: #ffcf70;
 }
+.cal-cell {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  min-height: 56px;
+  padding: 6px 5px;
+  color: var(--text);
+  text-align: center;
+  border: 1px solid var(--line);
+  background: rgba(8, 22, 39, 0.62);
+  cursor: pointer;
+}
+.cal-cell:hover {
+  border-color: rgba(98, 230, 213, 0.55);
+  transform: translateY(-2px);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.18);
+}
+.cal-cell:active {
+  transform: translateY(0) scale(0.98);
+}
+.cal-cell:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+.cal-day-number {
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.1;
+}
+.cal-compounds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+  margin-top: 3px;
+  font-size: 10px;
+  color: var(--accent-strong);
+}
+.cal-compounds span {
+  padding: 2px 7px;
+  border-radius: 99px;
+  background: rgba(98, 230, 213, 0.16);
+  border: 1px solid var(--accent);
+  font-weight: 600;
+}
+.cal-cell.today .cal-day-number {
+  box-shadow: inset 0 0 0 1px var(--violet);
+}
 .calendar-empty {
   min-height: 78px;
 }

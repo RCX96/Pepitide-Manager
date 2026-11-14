@@ -26,6 +26,7 @@ try {
 }
 let tab = 'inicio',
   editing = null,
+  draftFromCalendar = false,
   appDraft = null,
   compounds = [{ name: '', dose: '', unit: 'mg' }],
   applicationFilter = '',
@@ -255,11 +256,18 @@ const navs = [
   ['relatorios', '▤ Relatórios'],
   ['dados', '⚙ Dados'],
 ];
+function navHTML() {
+  return navs
+    .map(
+      ([id, label]) =>
+        `<button type="button" data-action="set-tab" data-id="${esc(id)}">${label}</button>`,
+    )
+    .join('');
+}
 function setTab(t) {
   tab = t;
   editing = null;
   render();
-  syncNav();
   syncNav();
 }
 function syncNav() {
@@ -344,6 +352,7 @@ function render() {
       '</p><p>O aplicativo bloqueou alterações para evitar substituir dados que não conseguiu ler. Não limpe o armazenamento do navegador. Se tiver um backup JSON, use o procedimento de recuperação com apoio técnico.</p><button type="button" data-action="download-raw">Baixar cópia bruta dos dados locais</button></div>';
     return;
   }
+  $('bottom-nav').innerHTML = navHTML();
   $('app').innerHTML = {
     inicio: home,
     aplicacoes: applications,
@@ -520,13 +529,69 @@ function calendarPage() {
   return `<h1>Calendário de aplicações</h1><p class="muted">Consulte aplicações já registradas. O calendário não calcula doses nem indica quando aplicar.</p><div class="panel"><div class="calendar-tools"><div class="row"><button type="button" data-action="cal-prev" aria-label="Período anterior">‹</button><button type="button" data-action="cal-today">Hoje</button><button type="button" data-action="cal-next" aria-label="Próximo período">›</button></div><div class="row"><button type="button" class="${calendarView === 'month' ? 'primary' : ''}" data-action="cal-view" data-id="month">Mês</button><button type="button" class="${calendarView === 'week' ? 'primary' : ''}" data-action="cal-view" data-id="week">Semana</button></div></div><h2>${esc(heading)}</h2><div class="calendar-grid">${['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'].map((w) => `<div class="calendar-weekday">${w}</div>`).join('')}${days.map((s) => (s ? `<button type="button" class="calendar-day ${s === calendarSelected ? 'selected' : ''} ${s === today() ? 'today' : ''}" data-action="cal-select" data-id="${esc(s)}" aria-label="${dateFmt(s)}: ${counts[s] || 0} aplicação(ões)"><span>${Number(s.slice(-2))}</span>${counts[s] ? `<span class="calendar-count">${counts[s]} aplicação${counts[s] === 1 ? '' : 'ões'}</span>` : ''}</button>` : '<div class="calendar-empty"></div>')).join('')}</div></div><div class="panel calendar-list"><h2>Aplicações de ${dateFmt(calendarSelected)}</h2>${chosen.length ? chosen.map((a) => `<div class="item"><b>${esc(a.time || 'Horário não informado')}</b><p>${a.compounds.map((c) => `${esc(c.name)} (${esc(c.dose)} ${esc(c.unit)})`).join(' + ')}</p><p class="muted">${esc(a.site || 'Local não informado')} • ${esc(db.cycles.find((c) => c.id === a.cycleId)?.name || 'Sem ciclo')}</p>${a.notes ? `<p class="muted">${esc(a.notes)}</p>` : ''}</div>`).join('') : '<p class="empty">Nenhuma aplicação registrada neste dia.</p>'}<div class="row"><button type="button" class="primary" data-action="set-tab" data-id="aplicacoes">Abrir aplicações</button></div></div>`;
 }
 
+function homeCalendar() {
+  const [y, m] = today().split('-').map(Number);
+  const start = new Date(Date.UTC(y, m - 1, 1, 12));
+  const length = new Date(Date.UTC(y, m, 0, 12)).getUTCDate();
+  const first = (start.getUTCDay() + 6) % 7;
+  const weekdays = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
+  const weekdayHTML = weekdays.map((w) => `<div class="calendar-weekday">${w}</div>`).join('');
+  const byDate = {};
+  for (const a of db.applications) {
+    if (!byDate[a.date]) {
+      byDate[a.date] = [];
+    }
+    byDate[a.date].push(a);
+  }
+  let cells = '';
+  for (let i = 0; i < first; i += 1) {
+    cells += '<div class="calendar-empty"></div>';
+  }
+  for (let d = 1; d <= length; d += 1) {
+    const date = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    const apps = byDate[date] || [];
+    const seen = new Set();
+    const names = [];
+    for (const a of apps) {
+      for (const c of a.compounds || []) {
+        const key = String(c.name).trim();
+        if (key && !seen.has(key.toLocaleLowerCase('pt-BR'))) {
+          seen.add(key.toLocaleLowerCase('pt-BR'));
+          names.push(key);
+        }
+      }
+    }
+    const number = String(d).padStart(2, '0');
+    const compounds = names.length
+      ? `<span class="cal-compounds">${names.map((n) => `<span>${esc(n)}</span>`).join('')}</span>`
+      : '';
+    cells += `
+      <button class="cal-cell" data-action="quick-register-date" data-id="${date}" aria-label="Registrar aplicação em ${dateFmt(date)}">
+        <span class="cal-day-number">${number}</span>
+        ${compounds}
+      </button>`;
+  }
+  const monthTitle = start.toLocaleDateString('pt-BR', {
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC',
+  });
+  return `
+    <div class="panel">
+      <h2>Calendário de aplicações</h2>
+      <p class="muted">Registros do mês. Clique em um dia para cadastrar aplicação na data indicada.</p>
+      <div class="calendar-grid">${weekdayHTML}</div>
+      <div class="calendar-grid">${cells}</div>
+    </div>`;
+}
+
 function home() {
   const weights = [...db.weights].sort((a, b) => a.date.localeCompare(b.date));
   const current = weights.at(-1);
   const recentApps = db.applications.slice().sort((a, b) => b.date.localeCompare(a.date));
   const active = db.cycles.filter((x) => x.status === 'active' && CYCLE_ID_RE.test(x.id));
   const paused = db.cycles.filter((x) => x.status === 'paused' && CYCLE_ID_RE.test(x.id));
-  return `<h1>Painel inicial</h1>${backupReminder()}<div class="grid"><div class="metric"><span>Aplicações</span><strong>${db.applications.length}</strong></div><div class="metric"><span>Ciclos em andamento</span><strong>${active.length}</strong></div><div class="metric"><span>Peso atual</span><strong>${current ? num(current.value) + ' kg' : '—'}</strong></div><div class="metric"><span>Meta de peso</span><strong>${db.goal ? num(db.goal) + ' kg' : '—'}</strong></div></div><div class="panel"><h2>Tempo dos ciclos</h2>${active.length || paused.length ? [...active, ...paused].map((c) => `<div class="item"><div class="row between"><b>${esc(c.name)}</b><span class="pill">${c.status === 'paused' ? 'Pausado' : 'Em andamento'}</span></div><p><strong>${cycleDuration(c)}</strong> <span class="muted">• desde ${dateFmt(c.start)}</span></p><div class="row">${button(c.status === 'paused' ? 'Retomar ciclo' : 'Pausar ciclo', c.status === 'paused' ? 'resume-cycle' : 'pause-cycle', c.id)}${button('Ver ciclo', 'set-tab', 'ciclos')}</div></div>`).join('') : '<p class="empty">Nenhum ciclo em andamento ou pausado.</p>'}<p class="muted">O tempo de ciclo não inclui os dias em pausa.</p></div><div class="panel"><h2>Acesso rápido</h2><div class="row">${button('+ Registrar aplicação', 'set-tab', 'aplicacoes', 'primary')}${button('+ Registrar peso', 'set-tab', 'peso')}${button('+ Criar ciclo', 'set-tab', 'ciclos')}</div></div><div class="panel"><h2>Últimas aplicações</h2>${
+  return `<h1>Painel inicial</h1>${backupReminder()}<div class="grid"><div class="metric"><span>Aplicações</span><strong>${db.applications.length}</strong></div><div class="metric"><span>Ciclos em andamento</span><strong>${active.length}</strong></div><div class="metric"><span>Peso atual</span><strong>${current ? num(current.value) + ' kg' : '—'}</strong></div><div class="metric"><span>Meta de peso</span><strong>${db.goal ? num(db.goal) + ' kg' : '—'}</strong></div></div><div class="panel"><h2>Tempo dos ciclos</h2>${active.length || paused.length ? [...active, ...paused].map((c) => `<div class="item"><div class="row between"><b>${esc(c.name)}</b><span class="pill">${c.status === 'paused' ? 'Pausado' : 'Em andamento'}</span></div><p><strong>${cycleDuration(c)}</strong> <span class="muted">• desde ${dateFmt(c.start)}</span></p><div class="row">${button(c.status === 'paused' ? 'Retomar ciclo' : 'Pausar ciclo', c.status === 'paused' ? 'resume-cycle' : 'pause-cycle', c.id)}${button('Ver ciclo', 'set-tab', 'ciclos')}</div></div>`).join('') : '<p class="empty">Nenhum ciclo em andamento ou pausado.</p>'}<p class="muted">O tempo de ciclo não inclui os dias em pausa.</p></div><div class="panel"><h2>Acesso rápido</h2><div class="row">${button('+ Registrar aplicação', 'set-tab', 'aplicacoes', 'primary')}${button('+ Registrar peso', 'set-tab', 'peso')}${button('+ Criar ciclo', 'set-tab', 'ciclos')}</div></div><div class="panel">${homeCalendar()}</div><div class="panel"><h2>Últimas aplicações</h2>${
     recentApps.length
       ? recentApps
           .slice(0, 4)
@@ -570,7 +635,12 @@ function copyApp(id) {
     return;
   }
   editing = null;
-  appDraft = { ...a, id: null, date: today(), compounds: a.compounds.map((c) => ({ ...c })) };
+  appDraft = {
+    id: null,
+    date: today(),
+    _isCopy: true,
+    compounds: a.compounds.map((c) => ({ ...c })),
+  };
   compounds = appDraft.compounds.map((c) => ({ ...c }));
   render();
 }
@@ -585,7 +655,7 @@ function applications() {
     .slice()
     .sort((x, y) => y.date.localeCompare(x.date));
   const a = editing ? db.applications.find((x) => x.id === editing) : appDraft;
-  const mode = editing ? 'Editar' : appDraft ? 'Nova (cópia)' : 'Nova';
+  const mode = editing ? 'Editar' : a && a._isCopy === true ? 'Nova (cópia)' : 'Nova';
   return `<h1>Aplicações</h1><div class="panel"><h2>${mode} aplicação • uma seringa</h2><form id="appForm" onsubmit="submitApp(event)"><div class="two"><div><label>Data</label><input name="date" type="date" required value="${a?.date || today()}"></div><div><label>Horário (opcional)</label><input name="time" type="time" value="${a?.time || ''}"></div></div><label>Local da aplicação</label><select name="site">${['Abdômen', 'Coxa', 'Braço', 'Outro', 'Não informado'].map((s) => `<option ${a?.site === s ? 'selected' : ''}>${s}</option>`).join('')}</select><label>Ciclo (opcional)</label><select name="cycleId"><option value="">Sem ciclo</option>${db.cycles
     .filter((c) => CYCLE_ID_RE.test(c.id))
     .map(
@@ -1557,6 +1627,25 @@ function handleAction(e) {
     case 'quick-register':
       quickRegister();
       break;
+    case 'quick-register-date': {
+      const date = id;
+      if (!date) {
+        return;
+      }
+      appDraft = {
+        id: null,
+        date,
+        time: '',
+        site: 'Não informado',
+        cycleId: null,
+        notes: 'Registrado a partir do calendário',
+        compounds: [{ name: '', dose: '', unit: 'mg' }],
+      };
+      compounds = appDraft.compounds.map((c) => ({ ...c }));
+      draftFromCalendar = true;
+      setTab('aplicacoes');
+      break;
+    }
     case 'quick-reminder': {
       const reminder = (db.reminders || []).find((r) => r.id === id);
       if (reminder) {
