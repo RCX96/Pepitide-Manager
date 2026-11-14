@@ -288,7 +288,7 @@ function extraPanels() {
         !catalogFilter ||
         n.toLocaleLowerCase('pt-BR').includes(catalogFilter.toLocaleLowerCase('pt-BR')),
     );
-    return `<div class="panel"><h2>Catálogo de compostos</h2><p class="muted">Edite ou remova sugestões salvas para agilizar novos registros.</p><input type="search" placeholder="Filtrar catálogo" value="${esc(catalogFilter)}" oninput="catalogFilter=this.value;render()"><div class="catalog-list">${names.length ? names.map((name) => `<div class="row between catalog-row"><span>${esc(name)}</span><span class="row"><button type="button" data-action="rename-compound" data-id="${esc(name)}">Renomear</button><button type="button" class="danger" data-action="remove-compound-name" data-id="${esc(name)}">Remover</button></span></div>`).join('') : '<p class="empty">Nenhum composto salvo.</p>'}</div></div><div class="panel"><h2>Proteção local</h2><p class="muted">Crie um código para bloquear a abertura deste navegador. O código não é enviado para a nuvem.</p>${localStorage.getItem('peptide-manager-lock-v1') ? button('Alterar código local', 'set-lock') + button('Remover código local', 'remove-lock') : button('Criar código local', 'set-lock', '', 'primary')}</div><div class="panel"><h2>Transferir para outro celular</h2><p class="muted">Baixe o backup verificado neste aparelho e restaure-o no outro. O arquivo contém todos os registros e o catálogo.</p>${button('Baixar arquivo de transferência', 'export-data', '', 'primary')}</div>`;
+    return `<div class="panel"><h2>Catálogo de compostos</h2><input type="search" placeholder="Filtrar catálogo" value="${esc(catalogFilter)}" oninput="catalogFilter=this.value;render()"><div class="catalog-list">${names.length ? names.map((name) => `<div class="row between catalog-row"><span>${esc(name)}</span><span class="row"><button type="button" data-action="rename-compound" data-id="${esc(name)}">Renomear</button><button type="button" class="danger" data-action="remove-compound-name" data-id="${esc(name)}">Remover</button></span></div>`).join('') : '<p class="empty">Nenhum composto salvo.</p>'}</div></div><div class="panel"><h2>Proteção local</h2>${localStorage.getItem('peptide-manager-lock-v1') ? button('Alterar código local', 'set-lock') + button('Remover código local', 'remove-lock') : button('Criar código local', 'set-lock', '', 'primary')}</div>`;
   }
   return '';
 }
@@ -347,10 +347,10 @@ function decorateCalendarCompounds() {
 function applicationsExtraPanel() {
   const names = rememberedCompoundNames();
   const history = historyCompound ? compoundHistory(historyCompound) : [];
-  return `<div class="panel"><h2>Histórico por composto</h2><label for="historyCompound">Composto</label><select id="historyCompound" aria-label="Filtrar histórico por composto" onchange="historyCompound=this.value;render()"><option value="">Escolha um composto</option>${names.map((n) => `<option value="${esc(n)}" ${historyCompound === n ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select>${historyCompound ? (history.length ? history.map((a) => `<div class="item"><b>${dateFmt(a.date)} ${esc(a.time || '')}</b><p>${a.compounds.map((c) => `${esc(c.name)} (${esc(c.dose)} ${esc(c.unit)})`).join(' + ')}</p></div>`).join('') : '<p class="empty">Nenhum registro para este composto.</p>') : '<p class="muted">Veja todas as aplicações de um composto.</p>'}</div>`;
+  return `<div class="panel"><h2>Histórico por composto</h2><label for="historyCompound">Composto</label><select id="historyCompound" aria-label="Filtrar histórico por composto" onchange="historyCompound=this.value;render()"><option value="">Escolha um composto</option>${names.map((n) => `<option value="${esc(n)}" ${historyCompound === n ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select>${historyCompound ? (history.length ? history.map((a) => `<div class="item"><b>${dateFmt(a.date)} ${esc(a.time || '')}</b><p>${a.compounds.map((c) => `${esc(c.name)} (${esc(c.dose)} ${esc(c.unit)})`).join(' + ')}</p></div>`).join('') : '<p class="empty">Nenhum registro para este composto.</p>') : ''}</div>`;
 }
 function encryptedBackupPanel() {
-  return `<div class="panel"><h2>Backup criptografado</h2><p class="muted">Protege o arquivo com AES-256-GCM. A senha não fica salva no aplicativo.</p><div class="row">${button('Exportar criptografado', 'export-encrypted', '', 'primary')}${button('Importar criptografado', 'import-encrypted')}</div></div>`;
+  return `<div class="panel"><h2>Backup criptografado</h2><div class="row">${button('Exportar criptografado', 'export-encrypted', '', 'primary')}${button('Importar criptografado', 'import-encrypted')}</div></div>`;
 }
 function appendRendered(html) {
   const app = $('app');
@@ -564,7 +564,7 @@ function calendarPage() {
     calendarView === 'month' ? monthTitle : `Semana de ${dateFmt(days[0])} a ${dateFmt(days[6])}`;
   const calendarClass =
     calendarView === 'week' ? 'calendar-grid calendar-week-grid' : 'calendar-grid';
-  return `<h1>Calendário de aplicações</h1><p class="muted">Consulte aplicações já registradas. O calendário não calcula doses nem indica quando aplicar.</p><div class="panel"><div class="calendar-tools"><div class="row"><button type="button" data-action="cal-prev" aria-label="Período anterior">‹</button><button type="button" data-action="cal-today">Hoje</button><button type="button" data-action="cal-next" aria-label="Próximo período">›</button></div><div class="row"><button type="button" class="${calendarView === 'month' ? 'primary' : ''}" data-action="cal-view" data-id="month">Mês</button><button type="button" class="${calendarView === 'week' ? 'primary' : ''}" data-action="cal-view" data-id="week">Semana</button></div></div><h2>${esc(heading)}</h2><div class="${calendarClass}">${['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'].map((w) => `<div class="calendar-weekday">${w}</div>`).join('')}${days.map((s) => (s ? `<button type="button" class="calendar-day ${s === calendarSelected ? 'selected' : ''} ${s === today() ? 'today' : ''}" data-action="cal-select" data-id="${esc(s)}" aria-label="${dateFmt(s)}: ${counts[s] || 0} aplicação(ões)"><span>${Number(s.slice(-2))}</span>${counts[s] ? `<span class="calendar-count">${counts[s]} aplicação${counts[s] === 1 ? '' : 'ões'}</span>` : ''}</button>` : '<div class="calendar-empty"></div>')).join('')}</div></div><div class="panel calendar-list"><h2>Aplicações de ${dateFmt(calendarSelected)}</h2>${chosen.length ? chosen.map((a) => `<div class="item"><b>${esc(a.time || 'Horário não informado')}</b><p>${a.compounds.map((c) => `${esc(c.name)} (${esc(c.dose)} ${esc(c.unit)})`).join(' + ')}</p><p class="muted">${esc(a.site || 'Local não informado')} • ${esc(db.cycles.find((c) => c.id === a.cycleId)?.name || 'Sem ciclo')}</p>${a.notes ? `<p class="muted">${esc(a.notes)}</p>` : ''}</div>`).join('') : '<p class="empty">Nenhuma aplicação registrada neste dia.</p>'}<div class="row"><button type="button" class="primary" data-action="set-tab" data-id="aplicacoes">Abrir aplicações</button></div></div>`;
+  return `<h1>Calendário de aplicações</h1><div class="panel"><div class="calendar-tools"><div class="row"><button type="button" data-action="cal-prev" aria-label="Período anterior">‹</button><button type="button" data-action="cal-today">Hoje</button><button type="button" data-action="cal-next" aria-label="Próximo período">›</button></div><div class="row"><button type="button" class="${calendarView === 'month' ? 'primary' : ''}" data-action="cal-view" data-id="month">Mês</button><button type="button" class="${calendarView === 'week' ? 'primary' : ''}" data-action="cal-view" data-id="week">Semana</button></div></div><h2>${esc(heading)}</h2><div class="${calendarClass}">${['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'].map((w) => `<div class="calendar-weekday">${w}</div>`).join('')}${days.map((s) => (s ? `<button type="button" class="calendar-day ${s === calendarSelected ? 'selected' : ''} ${s === today() ? 'today' : ''}" data-action="cal-select" data-id="${esc(s)}" aria-label="${dateFmt(s)}: ${counts[s] || 0} aplicação(ões)"><span>${Number(s.slice(-2))}</span>${counts[s] ? `<span class="calendar-count">${counts[s]} aplicação${counts[s] === 1 ? '' : 'ões'}</span>` : ''}</button>` : '<div class="calendar-empty"></div>')).join('')}</div></div><div class="panel calendar-list"><h2>Aplicações de ${dateFmt(calendarSelected)}</h2>${chosen.length ? chosen.map((a) => `<div class="item"><b>${esc(a.time || 'Horário não informado')}</b><p>${a.compounds.map((c) => `${esc(c.name)} (${esc(c.dose)} ${esc(c.unit)})`).join(' + ')}</p><p class="muted">${esc(db.cycles.find((c) => c.id === a.cycleId)?.name || 'Sem ciclo')}${a.notes ? ' • ' + esc(a.notes) : ''}</p></div>`).join('') : '<p class="empty">Nenhuma aplicação registrada neste dia.</p>'}</div>`;
 }
 
 function homeCalendar() {
@@ -631,22 +631,9 @@ function backupReminder() {
   return '';
 }
 function home() {
-  const weights = [...db.weights].sort((a, b) => a.date.localeCompare(b.date));
-  const current = weights.at(-1);
-  const recentApps = db.applications.slice().sort((a, b) => b.date.localeCompare(a.date));
   const active = db.cycles.filter((x) => x.status === 'active' && CYCLE_ID_RE.test(x.id));
   const paused = db.cycles.filter((x) => x.status === 'paused' && CYCLE_ID_RE.test(x.id));
-  return `<h1>Painel inicial</h1>${backupReminder()}<div class="grid"><div class="metric"><span>Aplicações</span><strong>${db.applications.length}</strong></div><div class="metric"><span>Ciclos em andamento</span><strong>${active.length}</strong></div><div class="metric"><span>Peso atual</span><strong>${current ? num(current.value) + ' kg' : '—'}</strong></div><div class="metric"><span>Meta de peso</span><strong>${db.goal ? num(db.goal) + ' kg' : '—'}</strong></div></div><div class="panel"><h2>Tempo dos ciclos</h2>${active.length || paused.length ? [...active, ...paused].map((c) => `<div class="item"><div class="row between"><b>${esc(c.name)}</b><span class="pill">${c.status === 'paused' ? 'Pausado' : 'Em andamento'}</span></div><p><strong>${cycleDuration(c)}</strong> <span class="muted">• desde ${dateFmt(c.start)}</span></p><div class="row">${button(c.status === 'paused' ? 'Retomar ciclo' : 'Pausar ciclo', c.status === 'paused' ? 'resume-cycle' : 'pause-cycle', c.id)}${button('Ver ciclo', 'set-tab', 'ciclos')}</div></div>`).join('') : '<p class="empty">Nenhum ciclo em andamento ou pausado.</p>'}<p class="muted">O tempo de ciclo não inclui os dias em pausa.</p></div><div class="panel"><h2>Acesso rápido</h2><div class="row">${button('+ Registrar aplicação', 'set-tab', 'aplicacoes', 'primary')}${button('+ Registrar peso', 'set-tab', 'peso')}${button('+ Criar ciclo', 'set-tab', 'ciclos')}</div></div><div class="panel">${homeCalendar()}</div><div class="panel"><h2>Últimas aplicações</h2>${
-    recentApps.length
-      ? recentApps
-          .slice(0, 4)
-          .map(
-            (a) =>
-              `<div class="item"><b>${dateFmt(a.date)}</b> • ${esc(a.compounds.map((c) => c.name).join(' + '))}</div>`,
-          )
-          .join('')
-      : '<p class="empty">Nenhuma aplicação registrada.</p>'
-  }</div>`;
+  return `<div class="grid"><div class="metric"><span>Aplicações</span><strong>${db.applications.length}</strong></div><div class="metric"><span>Ciclos em andamento</span><strong>${active.length}</strong></div></div><div class="panel"><h2>Tempo dos ciclos</h2>${active.length || paused.length ? [...active, ...paused].map((c) => `<div class="item"><div class="row between"><b>${esc(c.name)}</b><span class="pill">${c.status === 'paused' ? 'Pausado' : 'Em andamento'}</span></div><p><strong>${cycleDuration(c)}</strong> <span class="muted">• desde ${dateFmt(c.start)}</span></p><div class="row">${button(c.status === 'paused' ? 'Retomar ciclo' : 'Pausar ciclo', c.status === 'paused' ? 'resume-cycle' : 'pause-cycle', c.id)}${button('Ver ciclo', 'set-tab', 'ciclos')}</div></div>`).join('') : '<p class="empty">Nenhum ciclo em andamento ou pausado.</p>'}</div>`;
 }
 function compoundFields() {
   return compounds
@@ -701,7 +688,7 @@ function applications() {
     .sort((x, y) => y.date.localeCompare(x.date));
   const a = editing ? db.applications.find((x) => x.id === editing) : appDraft;
   const mode = editing ? 'Editar' : a && a._isCopy === true ? 'Nova (cópia)' : 'Nova';
-  return `<h1>Aplicações</h1><div class="panel"><h2>${mode} aplicação • uma seringa</h2><form id="appForm" onsubmit="submitApp(event)"><div class="two"><div><label for="appDate">Data</label><input id="appDate" name="date" type="date" required value="${a?.date || today()}"></div><div><label for="appTime">Horário (opcional)</label><input id="appTime" name="time" type="time" value="${a?.time || ''}"></div></div><label for="appCycle">Ciclo obrigatório</label><select id="appCycle" name="cycleId"><option value="">Sem ciclo</option>${db.cycles
+  return `<h1>Aplicações</h1><div class="panel"><h2>${mode} aplicação</h2><form id="appForm" onsubmit="submitApp(event)"><div class="two"><div><label for="appDate">Data</label><input id="appDate" name="date" type="date" required value="${a?.date || today()}"></div><div><label for="appTime">Horário (opcional)</label><input id="appTime" name="time" type="time" value="${a?.time || ''}"></div></div><label for="appCycle">Ciclo obrigatório</label><select id="appCycle" name="cycleId"><option value="">Sem ciclo</option>${db.cycles
     .filter((c) => CYCLE_ID_RE.test(c.id))
     .map(
       (c) =>
@@ -709,7 +696,7 @@ function applications() {
     )
     .join(
       '',
-    )}</select>${compoundNameList()}<div id="compoundList">${compoundFields()}</div>${button('+ Adicionar composto', 'add-compound')}<label for="appNotes">Observações</label><textarea id="appNotes" name="notes" placeholder="Observações opcionais">${esc(a?.notes || '')}</textarea><p class="muted">Os nomes dos compostos ficam salvos neste navegador e aparecem como sugestões na próxima aplicação.</p><p class="warning">Compostos no mesmo registro representam a mesma seringa. O aplicativo não verifica compatibilidade.</p><div class="row actions"><button class="primary" type="submit">${a ? 'Salvar alterações' : 'Salvar aplicação'}</button>${a ? button('Cancelar', 'cancel-app') : ''}</div></form></div><div class="panel"><h2>Histórico de aplicações</h2>${
+    )}</select>${compoundNameList()}<div id="compoundList">${compoundFields()}</div>${button('+ Adicionar composto', 'add-compound')}<label for="appNotes">Observações</label><textarea id="appNotes" name="notes" placeholder="Observações opcionais">${esc(a?.notes || '')}</textarea><div class="row actions"><button class="primary" type="submit">${a ? 'Salvar alterações' : 'Salvar aplicação'}</button>${a ? button('Cancelar', 'cancel-app') : ''}</div></form></div><div class="panel"><h2>Histórico de aplicações</h2>${
     visible.length
       ? visible
           .map(
@@ -769,14 +756,14 @@ function cycleDetails(x) {
     stop = x.status === 'finished' ? x.end || todayDate : todayDate;
   const total = dayCount(x.start, stop);
   const active = elapsedCycle(x);
-  const paused = Math.max(0, total - active);
   const periods = (x.pauses || [])
     .map(
       (p) =>
         `<div class="muted">⏸ ${dateFmt(p.start)} até ${p.end ? dateFmt(p.end) : 'em andamento'}</div>`,
     )
     .join('');
-  return `<div class="grid"><div class="metric"><span>Dias corridos</span><strong>${total}</strong></div><div class="metric"><span>Dias ativos</span><strong>${active}</strong></div><div class="metric"><span>Dias em pausa</span><strong>${paused}</strong></div><div class="metric"><span>Aplicações vinculadas</span><strong>${db.applications.filter((a) => a.cycleId === x.id).length}</strong></div></div><p class="muted">Início: ${dateFmt(x.start)} • ${x.status === 'finished' ? 'Término: ' + dateFmt(x.end) : 'Situação: ' + (x.status === 'paused' ? 'Pausado' : 'Em andamento')}</p>${periods ? `<details><summary>Histórico de pausas (${(x.pauses || []).length})</summary><div class="item">${periods}</div></details>` : '<p class="muted">Nenhuma pausa registrada.</p>'}`;
+  const appCount = db.applications.filter((a) => a.cycleId === x.id).length;
+  return `<p><strong>${active} dias ativos</strong> <span class="muted">• ${total} dias corridos • ${appCount} aplicação(ões)</span></p><p class="muted">Início: ${dateFmt(x.start)}${x.status === 'finished' && x.end ? ' • Término: ' + dateFmt(x.end) : ''}</p>${periods ? `<details><summary>Pausas (${(x.pauses || []).length})</summary><div class="item">${periods}</div></details>` : ''}`;
 }
 function cycles() {
   const c = editing ? db.cycles.find((x) => x.id === editing && CYCLE_ID_RE.test(x.id)) : null;
@@ -1055,7 +1042,7 @@ function dataPage() {
     ['applications', 'cycles'].includes(t.type),
   );
   const names = { applications: 'Aplicação', cycles: 'Ciclo' };
-  return `<h1>Ajustes</h1><div class="panel"><h2>Backup avançado</h2><p class="muted">Backup JSON com verificação SHA-256, aplicações, ciclos, catálogo e lixeira. Guarde uma cópia fora deste navegador.</p><p class="muted" id="backupStatus">${backupStatusText()}</p><div class="row">${button('Baixar backup verificado', 'export-data', '', 'primary')}${button('Compartilhar / Drive', 'share-backup')}</div><p class="muted">No Android, escolha Google Drive na tela de compartilhamento, se disponível. O envio não é automático.</p></div><div class="panel"><h2>Diagnóstico de integridade</h2><p class="muted">Verifique a estrutura dos dados salvos neste navegador. Esta verificação não altera registros.</p>${button('Verificar dados locais', 'verify-local')}</div><div class="panel"><h2>Restaurar backup</h2><p class="warning">O arquivo é verificado antes da restauração. A substituição exige confirmação. Faça um backup externo dos registros atuais antes.</p><label for="restoreFile">Arquivo JSON</label><input type="file" id="restoreFile" accept="application/json,.json"><div class="actions">${button('Importar arquivo', 'import-data')}</div></div><div class="panel"><h2>Lixeira • ${trash.length} registro(s)</h2><p class="muted">Aplicações e ciclos excluídos podem ser recuperados.</p>${
+  return `<h1>Ajustes</h1><div class="panel"><h2>Backup</h2><p class="muted" id="backupStatus">${backupStatusText()}</p><div class="row">${button('Baixar backup JSON', 'export-data', '', 'primary')}${button('Compartilhar', 'share-backup')}</div></div><div class="panel"><h2>Restaurar backup</h2><input type="file" id="restoreFile" accept="application/json,.json"><div class="actions">${button('Importar arquivo', 'import-data')}</div></div><div class="panel"><h2>Lixeira • ${trash.length} registro(s)</h2>${
     trash.length
       ? trash
           .slice()
@@ -1066,7 +1053,7 @@ function dataPage() {
           )
           .join('')
       : '<p class="empty">A lixeira está vazia.</p>'
-  }</div><div class="panel"><h2>Privacidade e limitações</h2><p>Os registros são guardados somente no armazenamento local deste navegador. Limpar os dados do navegador, usar outro aparelho ou abrir em outro navegador pode fazer os dados não aparecerem.</p><p>Instalação e funcionamento offline exigem abrir a versão PWA em HTTPS ou localhost pelo menos uma vez. Não há conta, sincronização automática em nuvem ou recuperação automática nesta versão. O compartilhamento com Drive depende de sua escolha no Android.</p></div>`;
+  }</div><div class="panel"><h2>Dados locais</h2><p class="muted">Os registros são salvos apenas neste navegador.</p><div class="row">${button('Verificar integridade', 'verify-local')}</div></div>`;
 }
 function strictDate(s) {
   if (typeof s !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(s)) {
@@ -1547,7 +1534,6 @@ function reportAppRows(apps) {
   return apps.map((a) => [
     dateFmt(a.date),
     a.time || '—',
-    a.site || '—',
     db.cycles.find((c) => c.id === a.cycleId)?.name || 'Sem ciclo',
     a.compounds.map((c) => `${c.name}: ${num(c.dose)} ${c.unit}`).join(' + '),
     a.notes || '',
@@ -1575,10 +1561,7 @@ function reportWeightRows(weights) {
   ]);
 }
 function reportsLegacy() {
-  const { apps, cycles, weights } = reportFiltered(),
-    first = weights[0],
-    last = weights.at(-1),
-    delta = first && last ? Number(last.value) - Number(first.value) : null;
+  const { apps, cycles } = reportFiltered();
   const choices = [
     `<option value="all">Todos os ciclos</option>`,
     ...db.cycles
@@ -1588,21 +1571,10 @@ function reportsLegacy() {
           `<option value="${esc(c.id)}" ${reportCycle === c.id ? 'selected' : ''}>${esc(c.name)}</option>`,
       ),
   ].join('');
-  return `<h1>Relatórios e exportação</h1><p class="report-print-head">Peptide Manager — relatório pessoal • gerado em ${new Date().toLocaleDateString('pt-BR')}</p><div class="panel report-filters"><h2>Filtros</h2><div class="two"><div><label>De</label><input id="reportFrom" type="date" value="${esc(reportFrom)}"></div><div><label>Até</label><input id="reportTo" type="date" value="${esc(reportTo)}"></div></div><label>Ciclo (aplicações e ciclos)</label><select id="reportCycle">${choices}</select><div class="row actions"><button type="button" class="primary" data-action="report-set">Aplicar filtros</button><button type="button" data-action="report-clear">Limpar filtros</button></div></div><div class="grid"><div class="metric"><span>Aplicações</span><strong>${apps.length}</strong></div><div class="metric"><span>Ciclos no período</span><strong>${cycles.length}</strong></div><div class="metric"><span>Pesagens</span><strong>${weights.length}</strong></div><div class="metric"><span>Variação do peso</span><strong>${delta === null ? '—' : (delta > 0 ? '+' : '') + num(delta) + ' kg'}</strong></div></div><div class="panel report-tools"><button type="button" class="primary" data-action="report-csv" data-id="applications">CSV aplicações</button><button type="button" data-action="report-csv" data-id="cycles">CSV ciclos</button><button type="button" data-action="report-csv" data-id="weights">CSV peso</button><button type="button" data-action="print">Imprimir / Salvar PDF</button></div><div class="panel"><h2>Aplicações</h2>${reportTable(['Data', 'Hora', 'Local', 'Ciclo', 'Compostos e doses', 'Observações'], reportAppRows(apps))}</div><div class="panel"><h2>Ciclos</h2>${reportTable(['Nome', 'Início', 'Fim', 'Estado', 'Dias ativos', 'Aplicações vinculadas'], reportCycleRows(cycles))}</div><div class="panel"><h2>Evolução de peso</h2>${reportTable(['Data', 'Peso', 'Diferença desde a pesagem anterior'], reportWeightRows(weights))}</div><p class="muted report-note">Relatório descritivo. O filtro de ciclo afeta aplicações e ciclos; pesagens usam apenas o intervalo de datas. A variação de peso não demonstra efeito de um composto. CSV e PDF contêm informações pessoais: guarde em local privado.</p>`;
+  return `<h1>Relatórios e exportação</h1><div class="panel report-filters"><h2>Filtros</h2><div class="two"><div><label>De</label><input id="reportFrom" type="date" value="${esc(reportFrom)}"></div><div><label>Até</label><input id="reportTo" type="date" value="${esc(reportTo)}"></div></div><label>Ciclo (aplicações e ciclos)</label><select id="reportCycle">${choices}</select><div class="row actions"><button type="button" class="primary" data-action="report-set">Aplicar filtros</button><button type="button" data-action="report-clear">Limpar filtros</button></div></div><div class="grid"><div class="metric"><span>Aplicações</span><strong>${apps.length}</strong></div><div class="metric"><span>Ciclos no período</span><strong>${cycles.length}</strong></div></div><div class="panel report-tools"><button type="button" class="primary" data-action="report-csv" data-id="applications">CSV aplicações</button><button type="button" data-action="report-csv" data-id="cycles">CSV ciclos</button><button type="button" data-action="print">Imprimir / Salvar PDF</button></div><div class="panel"><h2>Aplicações</h2>${reportTable(['Data', 'Hora', 'Ciclo', 'Compostos e doses', 'Observações'], reportAppRows(apps))}</div><div class="panel"><h2>Ciclos</h2>${reportTable(['Nome', 'Início', 'Fim', 'Estado', 'Dias ativos', 'Aplicações vinculadas'], reportCycleRows(cycles))}</div>`;
 }
 function reports() {
-  return reportsLegacy()
-    .replace(/<div class="metric"><span>Pesagens<\/span>[\s\S]*?<\/div>/, '')
-    .replace(/<div class="metric"><span>Variação do peso<\/span>[\s\S]*?<\/div>/, '')
-    .replace(/<button type="button" data-action="report-csv" data-id="weights">[^<]*<\/button>/, '')
-    .replace(
-      /<div class="panel"><h2>Evolução de peso<\/h2>[\s\S]*?<\/div><p class="muted report-note">/,
-      '<p class="muted report-note">',
-    )
-    .replace(
-      /<p class="muted report-note">[\s\S]*?<\/p>/,
-      '<p class="muted report-note">Relatório descritivo. O filtro de ciclo afeta aplicações e ciclos. CSV e PDF contêm informações pessoais: guarde em local privado.</p>',
-    );
+  return reportsLegacy();
 }
 function csvCell(v) {
   let s = String(v ?? '');
@@ -1615,7 +1587,7 @@ function exportReportCSV(kind) {
   const data = reportFiltered();
   const map = {
     applications: {
-      headers: ['Data', 'Hora', 'Local', 'Ciclo', 'Compostos e doses', 'Observações'],
+      headers: ['Data', 'Hora', 'Ciclo', 'Compostos e doses', 'Observações'],
       rows: reportAppRows(data.apps),
     },
     cycles: {

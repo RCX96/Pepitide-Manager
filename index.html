@@ -9,11 +9,11 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="icon" href="./icon-192.png" type="image/png" />
-    <link rel="stylesheet" href="./styles.css?v=2.17" />
+    <link rel="stylesheet" href="./styles.css?v=2.18" />
   </head>
   <body>
     <header>
-      <div><b>◈ Peptide Manager</b><small>Registro pessoal • versão 2.5</small></div>
+      <div><b>◈ Peptide Manager</b></div>
     </header>
     <main id="app"></main>
     <nav id="bottom-nav">
@@ -23,13 +23,7 @@
       <button type="button" data-action="set-tab" data-id="relatorios">▤ Relatórios</button>
       <button type="button" data-action="set-tab" data-id="configuracoes">⚙ Ajustes</button>
     </nav>
-    <footer>
-      <div>
-        Os dados ficam neste navegador e neste endereço. Antes de mudar de endereço ou aparelho,
-        exporte um backup JSON e restaure no novo aplicativo. Não há sincronização automática. Este
-        aplicativo não avalia a segurança de misturas ou doses.
-      </div>
-    </footer>
+    <footer></footer>
     <dialog id="confirmDialog">
       <h2>Confirmar exclusão</h2>
       <p id="confirmText"></p>
@@ -41,6 +35,6 @@
         ><button class="danger" id="confirmYes">Sim, excluir</button>
       </div>
     </dialog>
-    <script src="./app.js?v=2.17" defer></script>
+    <script src="./app.js?v=2.18" defer></script>
   </body>
 </html>
