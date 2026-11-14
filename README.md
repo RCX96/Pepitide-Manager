@@ -6,7 +6,7 @@ no navegador e não envia dados para servidor.
 **Aviso:** o aplicativo é um diário. Ele não avalia segurança, compatibilidade ou doses de
 compostos e não substitui orientação profissional.
 
-- Produção: <https://pepitide-manager.vercel.app>
+- Fontes: <https://github.com/RCX96/Pepitide-Manager>
 - Versão atual: 2.4
 
 ## O que faz
@@ -42,7 +42,6 @@ manifest.webmanifest  metadados da PWA
 service-worker.js     cache offline (network-first na navegação)
 icon-192.png          ícone
 icon-512.png          ícone
-vercel.json           headers de segurança e cache
 tests/logic.test.mjs  testes das funções puras
 ```
 
@@ -72,8 +71,8 @@ Abrir `index.html` direto no disco também funciona, mas sem modo offline.
 
 ## Deploy
 
-O deploy é feito pela Vercel a partir da branch `main`. Alterações entram por pull request; a
-`main` é a fonte da verdade.
+O aplicativo é estático. O branch `main` é a fonte da verdade; o GitHub Pages (ou qualquer
+servidor estático) expõe a PWA sem precisar de backend ou de uma provedora de deploy separada.
 
 ## Versionamento
 
