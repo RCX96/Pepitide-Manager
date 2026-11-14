@@ -234,7 +234,7 @@ async function removeLock() {
 async function unlockApp() {
   const input = $('unlockCode');
   if (!input || (await hashText(input.value)) !== localStorage.getItem(LOCK_KEY)) {
-    alert('CÃ³digo incorreto.');
+    alert('Código incorreto.');
     return;
   }
   unlocked = true;
@@ -285,7 +285,7 @@ function extraPanels() {
       .filter((r) => r.active && r.date >= today())
       .sort((a, b) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`))
       .slice(0, 5);
-    return `<div class="panel"><div class="row between"><h2>PrÃ³ximas aplicaÃ§Ãµes</h2>${button('Novo lembrete', 'new-reminder', '', 'primary')}</div>${upcoming.length ? upcoming.map((r) => `<div class="item"><div class="row between"><b>${esc(r.compoundName)}</b><span class="pill">${dateFmt(r.date)}${r.time ? ' â€¢ ' + esc(r.time) : ''}</span></div><p class="muted">${r.repeat === 'daily' ? 'Todos os dias' : r.repeat === 'weekly' ? 'Semanal' : 'Uma vez'}</p><div class="row">${button('Registrar agora', 'quick-reminder', r.id)}${button('Excluir', 'delete-reminder', r.id, 'danger')}</div></div>`).join('') : '<p class="empty">Nenhum lembrete ativo.</p>'}</div>`;
+    return `<div class="panel"><div class="row between"><h2>Próximas aplicações</h2>${button('Novo lembrete', 'new-reminder', '', 'primary')}</div>${upcoming.length ? upcoming.map((r) => `<div class="item"><div class="row between"><b>${esc(r.compoundName)}</b><span class="pill">${dateFmt(r.date)}${r.time ? ' â€¢ ' + esc(r.time) : ''}</span></div><p class="muted">${r.repeat === 'daily' ? 'Todos os dias' : r.repeat === 'weekly' ? 'Semanal' : 'Uma vez'}</p><div class="row">${button('Registrar agora', 'quick-reminder', r.id)}${button('Excluir', 'delete-reminder', r.id, 'danger')}</div></div>`).join('') : '<p class="empty">Nenhum lembrete ativo.</p>'}</div>`;
   }
   if (tab === 'aplicacoes') {
     return `<div class="panel quick-filter"><h2>Buscar aplicações</h2><input id="applicationSearch" type="search" value="${esc(applicationFilter)}" placeholder="Composto, data, local ou observação" oninput="setApplicationFilter(this.value)"></div>`;
@@ -319,14 +319,14 @@ function animateRender() {
 function applicationsExtraPanel() {
   const names = rememberedCompoundNames();
   const history = historyCompound ? compoundHistory(historyCompound) : [];
-  return `<div class="panel"><h2>HistÃ³rico por composto</h2><select onchange="historyCompound=this.value;render()"><option value="">Escolha um composto</option>${names.map((n) => `<option value="${esc(n)}" ${historyCompound === n ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select>${historyCompound ? (history.length ? history.map((a) => `<div class="item"><b>${dateFmt(a.date)} ${esc(a.time || '')}</b><p>${a.compounds.map((c) => `${esc(c.name)} (${esc(c.dose)} ${esc(c.unit)})`).join(' + ')}</p><p class="muted">${esc(a.site || '')}</p></div>`).join('') : '<p class="empty">Nenhum registro para este composto.</p>') : '<p class="muted">Veja todas as aplicaÃ§Ãµes de um composto.</p>'}</div>`;
+  return `<div class="panel"><h2>Histórico por composto</h2><select onchange="historyCompound=this.value;render()"><option value="">Escolha um composto</option>${names.map((n) => `<option value="${esc(n)}" ${historyCompound === n ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select>${historyCompound ? (history.length ? history.map((a) => `<div class="item"><b>${dateFmt(a.date)} ${esc(a.time || '')}</b><p>${a.compounds.map((c) => `${esc(c.name)} (${esc(c.dose)} ${esc(c.unit)})`).join(' + ')}</p><p class="muted">${esc(a.site || '')}</p></div>`).join('') : '<p class="empty">Nenhum registro para este composto.</p>') : '<p class="muted">Veja todas as aplicações de um composto.</p>'}</div>`;
 }
 function reminderFormPanel() {
-  return `<div class="panel"><h2>Novo lembrete</h2><form onsubmit="saveReminder(event)">${compoundNameList()}<label>Composto</label><input name="compoundName" list="compoundNames" required placeholder="Nome do composto"><div class="two"><div><label>Data inicial</label><input name="date" type="date" value="${today()}" required></div><div><label>HorÃ¡rio</label><input name="time" type="time"></div></div><label>RepetiÃ§Ã£o</label><select name="repeat"><option value="none">Uma vez</option><option value="daily">Todos os dias</option><option value="weekly">Toda semana</option></select><div class="row actions"><button class="primary" type="submit">Salvar lembrete</button></div></form></div>`;
+  return `<div class="panel"><h2>Novo lembrete</h2><form onsubmit="saveReminder(event)">${compoundNameList()}<label>Composto</label><input name="compoundName" list="compoundNames" required placeholder="Nome do composto"><div class="two"><div><label>Data inicial</label><input name="date" type="date" value="${today()}" required></div><div><label>Horário</label><input name="time" type="time"></div></div><label>Repetição</label><select name="repeat"><option value="none">Uma vez</option><option value="daily">Todos os dias</option><option value="weekly">Toda semana</option></select><div class="row actions"><button class="primary" type="submit">Salvar lembrete</button></div></form></div>`;
 }
 function calendarExtraPanel() {
   const planned = remindersOnDate(calendarSelected);
-  return `<div class="panel"><h2>Lembretes de ${dateFmt(calendarSelected)}</h2>${planned.length ? planned.map((r) => `<div class="item"><div class="row between"><b>${esc(r.compoundName)}</b><span>${esc(r.time || 'HorÃ¡rio nÃ£o definido')}</span></div><div class="row">${button('Registrar agora', 'quick-reminder', r.id)}</div></div>`).join('') : '<p class="empty">Nenhum lembrete para este dia.</p>'}</div>`;
+  return `<div class="panel"><h2>Lembretes de ${dateFmt(calendarSelected)}</h2>${planned.length ? planned.map((r) => `<div class="item"><div class="row between"><b>${esc(r.compoundName)}</b><span>${esc(r.time || 'Horário não definido')}</span></div><div class="row">${button('Registrar agora', 'quick-reminder', r.id)}</div></div>`).join('') : '<p class="empty">Nenhum lembrete para este dia.</p>'}</div>`;
 }
 function encryptedBackupPanel() {
   return `<div class="panel"><h2>Backup criptografado</h2><p class="muted">Protege o arquivo com AES-256-GCM. A senha não fica salva no aplicativo.</p><div class="row">${button('Exportar criptografado', 'export-encrypted', '', 'primary')}${button('Importar criptografado', 'import-encrypted')}</div></div>`;
@@ -341,7 +341,7 @@ function render() {
   if (!unlocked) {
     $('bottom-nav').innerHTML = '';
     $('app').innerHTML =
-      '<div class="panel lock-screen"><h1>Aplicativo protegido</h1><p>Digite seu cÃ³digo local para abrir os registros.</p><input id="unlockCode" type="password" autocomplete="current-password" placeholder="CÃ³digo local"><button type="button" class="primary" data-action="unlock-app">Desbloquear</button></div>';
+      '<div class="panel lock-screen"><h1>Aplicativo protegido</h1><p>Digite seu código local para abrir os registros.</p><input id="unlockCode" type="password" autocomplete="current-password" placeholder="Código local"><button type="button" class="primary" data-action="unlock-app">Desbloquear</button></div>';
     return;
   }
   if (loadError) {
@@ -1365,7 +1365,7 @@ async function exportEncryptedData() {
     );
     alert('Backup criptografado gerado. Guarde a senha separadamente.');
   } catch (e) {
-    alert('Backup criptografado nÃ£o gerado: ' + e.message);
+    alert('Backup criptografado não gerado: ' + e.message);
   }
 }
 async function importEncryptedData() {
@@ -1376,7 +1376,7 @@ async function importEncryptedData() {
   try {
     const payload = JSON.parse(await file.text());
     if (!payload.encrypted || payload.algorithm !== 'AES-256-GCM') {
-      throw Error('Arquivo criptografado invÃ¡lido');
+      throw Error('Arquivo criptografado inválido');
     }
     const password = prompt('Digite a senha deste backup:');
     if (!password) {
@@ -1402,7 +1402,7 @@ async function importEncryptedData() {
     save();
     alert('Backup criptografado restaurado.');
   } catch (e) {
-    alert('NÃ£o foi possÃ­vel abrir o backup criptografado. Verifique a senha e o arquivo.');
+    alert('Não foi possível abrir o backup criptografado. Verifique a senha e o arquivo.');
   }
 }
 async function shareBackup() {
