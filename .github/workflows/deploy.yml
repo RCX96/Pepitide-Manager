@@ -1,0 +1,74 @@
+name: Deploy (GitHub Pages)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Rodar testes
+        run: node --test
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Separar arquivos publicados
+        run: |
+          mkdir -p _site
+          cp index.html manifest.webmanifest service-worker.js icon-192.png icon-512.png _site/
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4
+
+  smoke:
+    needs: deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Conferir versão publicada
+        run: |
+          URL="https://rcx96.github.io/Pepitide-Manager"
+          EXPECTED=$(grep -o 'versão [0-9][0-9.]*' index.html | head -1 | cut -d' ' -f2)
+          CACHE=$(grep -o 'peptide-manager-shell-v[0-9.]*' service-worker.js | head -1 | sed 's/.*-v//')
+          echo "versão no repo: $EXPECTED / cache do SW: $CACHE"
+          for i in $(seq 1 10); do
+            body=$(curl -fsS "$URL/index.html?cb=$RANDOM" || true)
+            sw=$(curl -fsS "$URL/service-worker.js?cb=$RANDOM" || true)
+            if echo "$body" | grep -q "versão $EXPECTED" && echo "$sw" | grep -q "shell-v$CACHE"; then
+              echo "publicado ok"; exit 0
+            fi
+            sleep 15
+          done
+          echo "conteúdo publicado não confere com a versão $EXPECTED"; exit 1
