@@ -279,13 +279,6 @@ function syncNav() {
   }
 }
 function extraPanels() {
-  if (tab === 'inicio') {
-    const upcoming = (db.reminders || [])
-      .filter((r) => r.active && r.date >= today())
-      .sort((a, b) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`))
-      .slice(0, 5);
-    return `<div class="panel"><div class="row between"><h2>Próximas aplicações</h2>${button('Novo lembrete', 'new-reminder', '', 'primary')}</div>${upcoming.length ? upcoming.map((r) => `<div class="item"><div class="row between"><b>${esc(r.compoundName)}</b><span class="pill">${dateFmt(r.date)}${r.time ? ' â€¢ ' + esc(r.time) : ''}</span></div><p class="muted">${r.repeat === 'daily' ? 'Todos os dias' : r.repeat === 'weekly' ? 'Semanal' : 'Uma vez'}</p><div class="row">${button('Registrar agora', 'quick-reminder', r.id)}${button('Excluir', 'delete-reminder', r.id, 'danger')}</div></div>`).join('') : '<p class="empty">Nenhum lembrete ativo.</p>'}</div>`;
-  }
   if (tab === 'aplicacoes') {
     return `<div class="panel quick-filter"><h2>Buscar aplicações</h2><input id="applicationSearch" type="search" value="${esc(applicationFilter)}" placeholder="Composto, data ou observação" oninput="setApplicationFilter(this.value)"></div>`;
   }
@@ -348,13 +341,6 @@ function applicationsExtraPanel() {
   const history = historyCompound ? compoundHistory(historyCompound) : [];
   return `<div class="panel"><h2>Histórico por composto</h2><select onchange="historyCompound=this.value;render()"><option value="">Escolha um composto</option>${names.map((n) => `<option value="${esc(n)}" ${historyCompound === n ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select>${historyCompound ? (history.length ? history.map((a) => `<div class="item"><b>${dateFmt(a.date)} ${esc(a.time || '')}</b><p>${a.compounds.map((c) => `${esc(c.name)} (${esc(c.dose)} ${esc(c.unit)})`).join(' + ')}</p><p class="muted">${esc(a.site || '')}</p></div>`).join('') : '<p class="empty">Nenhum registro para este composto.</p>') : '<p class="muted">Veja todas as aplicações de um composto.</p>'}</div>`;
 }
-function reminderFormPanel() {
-  return `<div class="panel"><h2>Novo lembrete</h2><form onsubmit="saveReminder(event)">${compoundNameList()}<label>Composto</label><input name="compoundName" list="compoundNames" required placeholder="Nome do composto"><div class="two"><div><label>Data inicial</label><input name="date" type="date" value="${today()}" required></div><div><label>Horário</label><input name="time" type="time"></div></div><label>Repetição</label><select name="repeat"><option value="none">Uma vez</option><option value="daily">Todos os dias</option><option value="weekly">Toda semana</option></select><div class="row actions"><button class="primary" type="submit">Salvar lembrete</button></div></form></div>`;
-}
-function calendarExtraPanel() {
-  const planned = remindersOnDate(calendarSelected);
-  return `<div class="panel"><h2>Lembretes de ${dateFmt(calendarSelected)}</h2>${planned.length ? planned.map((r) => `<div class="item"><div class="row between"><b>${esc(r.compoundName)}</b><span>${esc(r.time || 'Horário não definido')}</span></div><div class="row">${button('Registrar agora', 'quick-reminder', r.id)}</div></div>`).join('') : '<p class="empty">Nenhum lembrete para este dia.</p>'}</div>`;
-}
 function encryptedBackupPanel() {
   return `<div class="panel"><h2>Backup criptografado</h2><p class="muted">Protege o arquivo com AES-256-GCM. A senha não fica salva no aplicativo.</p><div class="row">${button('Exportar criptografado', 'export-encrypted', '', 'primary')}${button('Importar criptografado', 'import-encrypted')}</div></div>`;
 }
@@ -416,10 +402,6 @@ function render() {
         emptyCycle.textContent = 'Selecione um ciclo';
       }
     }
-  }
-  if (tab === 'inicio') {
-    appendRendered(extraPanels());
-    appendRendered(reminderFormPanel());
   }
   if (tab === 'calendario') {
     // Lembretes não aparecem nesta tela.
@@ -1693,9 +1675,6 @@ function handleAction(e) {
         setTab(id);
       }
       break;
-    case 'new-reminder':
-      setTab('inicio');
-      break;
     case 'quick-register':
       quickRegister();
       break;
@@ -1718,28 +1697,6 @@ function handleAction(e) {
       setTab('aplicacoes');
       break;
     }
-    case 'quick-reminder': {
-      const reminder = (db.reminders || []).find((r) => r.id === id);
-      if (reminder) {
-        appDraft = {
-          id: null,
-          date: today(),
-          time: reminder.time,
-          site: 'Não informado',
-          cycleId: null,
-          notes: 'Registrado a partir de lembrete',
-          compounds: [{ name: reminder.compoundName, dose: '', unit: 'mg' }],
-        };
-        compounds = appDraft.compounds.map((c) => ({ ...c }));
-        setTab('aplicacoes');
-      }
-      break;
-    }
-    case 'delete-reminder':
-      if (id && confirm('Excluir este lembrete?')) {
-        deleteReminder(id);
-      }
-      break;
     case 'export-data':
       exportData();
       break;
