@@ -706,7 +706,7 @@ dialog .warning {
     gap: 3px;
   }
   .calendar-grid {
-    grid-template-columns: repeat(7, minmax(168px, 168px));
+    grid-template-columns: repeat(7, minmax(118px, 118px));
     max-width: 100%;
     padding: 0 64px 8px;
     overflow-x: auto;
@@ -714,8 +714,8 @@ dialog .warning {
   }
   .calendar-grid .calendar-day,
   .calendar-grid .calendar-empty {
-    min-height: 160px;
-    padding: 10px;
+    min-height: 112px;
+    padding: 7px;
   }
   .calendar-grid .calendar-day.selected {
     border-width: 2px;
@@ -728,6 +728,7 @@ dialog .warning {
     gap: 2px;
   }
   .cal-compounds span {
+    padding: 2px 5px;
     font-size: 8px;
   }
   .calendar-count {
