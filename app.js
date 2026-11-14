@@ -1,5 +1,6 @@
 const KEY = 'peptide-manager-v1';
 const BACKUP_META_KEY = 'peptide-manager-backup-meta-v2.2';
+const CYCLE_ID_RE = /^[a-f0-9-]{1,64}$/i;
 const blank = () => ({
   applications: [],
   cycles: [],
@@ -60,7 +61,6 @@ const save = () => {
 };
 const dateFmt = (s) => (s ? new Date(s + 'T12:00:00').toLocaleDateString('pt-BR') : '—');
 const num = (n) => Number(n).toLocaleString('pt-BR', { maximumFractionDigits: 2 });
-const CYCLE_ID_RE = /^[a-f0-9-]{1,64}$/i;
 const uid = () => {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
     return crypto.randomUUID();
