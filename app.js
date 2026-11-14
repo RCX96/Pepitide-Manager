@@ -625,6 +625,9 @@ function homeCalendar() {
     </div>`;
 }
 
+function backupReminder() {
+  return '';
+}
 function home() {
   const weights = [...db.weights].sort((a, b) => a.date.localeCompare(b.date));
   const current = weights.at(-1);
@@ -1241,32 +1244,6 @@ function validateBackup(d) {
   }
   return true;
 }
-const BACKUP_REMINDER_DAYS = 14;
-function backupReminder() {
-  try {
-    const hasData = db.applications.length || db.cycles.length || db.weights.length;
-    if (!hasData) {
-      return '';
-    }
-    const m = JSON.parse(localStorage.getItem(BACKUP_META_KEY) || 'null');
-    const last = m && m.preparedAt ? new Date(m.preparedAt).getTime() : 0;
-    const days = last ? Math.floor((Date.now() - last) / 864e5) : null;
-    if (days !== null && days < BACKUP_REMINDER_DAYS) {
-      return '';
-    }
-    const msg =
-      days === null
-        ? 'Você ainda não fez nenhum backup neste navegador.'
-        : 'Seu último backup foi há ' + days + ' dias.';
-    return (
-      '<div class="panel" id="backupReminder" role="alert"><h2>Lembrete de backup</h2><p class="warning">' +
-      msg +
-      ' Os dados ficam só neste navegador e podem ser perdidos se ele for limpo.</p><button type="button" data-action="export-data">↧ Fazer backup agora</button></div>'
-    );
-  } catch (e) {
-    return '';
-  }
-}
 function backupStatusText() {
   try {
     const m = JSON.parse(localStorage.getItem(BACKUP_META_KEY) || 'null');
@@ -1323,10 +1300,6 @@ function noteBackupPrepared(filename) {
     const status = $('backupStatus');
     if (status) {
       status.textContent = backupStatusText();
-    }
-    const reminder = $('backupReminder');
-    if (reminder) {
-      reminder.remove();
     }
   } catch (e) {
     console.warn('Não foi possível registrar a data do backup', e);
