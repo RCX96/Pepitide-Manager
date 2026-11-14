@@ -255,11 +255,18 @@ const navs = [
   ['relatorios', '▤ Relatórios'],
   ['dados', '⚙ Dados'],
 ];
+function navHTML() {
+  return navs
+    .map(
+      ([id, label]) =>
+        `<button type="button" data-action="set-tab" data-id="${esc(id)}">${label}</button>`,
+    )
+    .join('');
+}
 function setTab(t) {
   tab = t;
   editing = null;
   render();
-  syncNav();
   syncNav();
 }
 function syncNav() {
@@ -344,6 +351,7 @@ function render() {
       '</p><p>O aplicativo bloqueou alterações para evitar substituir dados que não conseguiu ler. Não limpe o armazenamento do navegador. Se tiver um backup JSON, use o procedimento de recuperação com apoio técnico.</p><button type="button" data-action="download-raw">Baixar cópia bruta dos dados locais</button></div>';
     return;
   }
+  $('bottom-nav').innerHTML = navHTML();
   $('app').innerHTML = {
     inicio: home,
     aplicacoes: applications,

@@ -387,3 +387,44 @@ test('handleAction gerencia eventos via delegação de data-action e data-id', (
   testApp.handleAction({ target: evilBtn });
   assert.equal(testApp.db.cycles[0].status, 'active');
 });
+
+test('uniqueCompoundNames remove duplicados e trata maiúsculas/minúsculas como iguais', () => {
+  const names = ['Semaglutida', ' semaglutida ', 'Semaglutida', 'Liraglutida', 'liraglutida'];
+  assert.deepStrictEqual(Array.from(app.uniqueCompoundNames(names)), ['Semaglutida', 'Liraglutida']);
+});
+
+test('uniqueCompoundNames ignora espaços extras e mantém a primeira ocorrência', () => {
+  assert.deepStrictEqual(Array.from(app.uniqueCompoundNames(['A', ' a ', 'A'])), ['A']);
+  assert.deepStrictEqual(Array.from(app.uniqueCompoundNames([' X ', 'x', 'Y '])), ['X', 'Y']);
+});
+
+test('reminderMatchesDate considera daily e weekly', () => {
+  const weekly = { active: true, date: '2026-11-01', repeat: 'weekly' };
+  assert.equal(app.reminderMatchesDate(weekly, '2026-11-01'), true);
+  assert.equal(app.reminderMatchesDate(weekly, '2026-11-08'), true);
+  assert.equal(app.reminderMatchesDate(weekly, '2026-11-02'), false);
+
+  const daily = { active: true, date: '2026-11-05', repeat: 'daily' };
+  assert.equal(app.reminderMatchesDate(daily, '2026-11-07'), true);
+  assert.equal(app.reminderMatchesDate(daily, '2026-11-04'), false);
+});
+
+test('compoundHistory ordena por data decrescente e filtra pelo composto', () => {
+  app.db.applications = [
+    { date: '2026-11-02', compounds: [{ name: 'Semaglutida', dose: 1, unit: 'mg' }] },
+    { date: '2026-11-05', compounds: [{ name: 'Semaglutida', dose: 1.5, unit: 'mg' }] },
+    { date: '2026-11-03', compounds: [{ name: 'Liraglutida', dose: 0.5, unit: 'mg' }] },
+  ];
+  const history = app.compoundHistory('semaglutida');
+  assert.equal(history.length, 2);
+  assert.equal(history[0].date, '2026-11-05');
+  assert.equal(history[1].date, '2026-11-02');
+});
+
+test('lastCompoundEntry retorna a última entrada de um composto', () => {
+  app.db.applications = [
+    { date: '2026-11-01', compounds: [{ name: 'Semaglutida', dose: 1, unit: 'mg' }] },
+    { date: '2026-11-03', compounds: [{ name: 'Semaglutida', dose: 1.5, unit: 'mg' }] },
+  ];
+  assert.equal(app.lastCompoundEntry('Semaglutida').dose, 1.5);
+});
