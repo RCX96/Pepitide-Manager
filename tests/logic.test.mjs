@@ -467,3 +467,11 @@ test('compoundsOnDate lista os compostos aplicados no dia sem duplicar nomes', (
   assert.deepEqual(Array.from(testApp.compoundsOnDate('2026-11-14')), ['Semaglutida', 'BPC-157']);
 });
 
+test('relatórios não exibem recursos de peso', () => {
+  const testApp = loadApp();
+  const rendered = testApp.reports();
+  assert.equal(rendered.includes('Pesagens'), false);
+  assert.equal(rendered.includes('Evolução de peso'), false);
+  assert.equal(rendered.includes('CSV peso'), false);
+});
+

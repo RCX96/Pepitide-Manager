@@ -392,8 +392,8 @@ function render() {
   }[tab]();
   suppressHomeCalendar = false;
   if (tab === 'inicio') {
-    $('app').innerHTML = $('app').innerHTML
-      .replace(/<div class="metric"><span>Peso atual<\/span>[\s\S]*?<\/div>/, '')
+    $('app').innerHTML = $('app')
+      .innerHTML.replace(/<div class="metric"><span>Peso atual<\/span>[\s\S]*?<\/div>/, '')
       .replace(/<div class="metric"><span>Meta de peso<\/span>[\s\S]*?<\/div>/, '')
       .replace(/<button[^>]*data-id="peso"[^>]*>[^<]*<\/button>/, '');
     $('app').innerHTML = calendarPage() + $('app').innerHTML;
@@ -422,7 +422,7 @@ function render() {
     appendRendered(reminderFormPanel());
   }
   if (tab === 'calendario') {
-    appendRendered(calendarExtraPanel());
+    // Lembretes não aparecem nesta tela.
   }
   if (tab === 'dados') {
     appendRendered(encryptedBackupPanel());
@@ -1610,7 +1610,7 @@ function reportWeightRows(weights) {
       : '—',
   ]);
 }
-function reports() {
+function reportsLegacy() {
   const { apps, cycles, weights } = reportFiltered(),
     first = weights[0],
     last = weights.at(-1),
@@ -1625,6 +1625,20 @@ function reports() {
       ),
   ].join('');
   return `<h1>Relatórios e exportação</h1><p class="report-print-head">Peptide Manager — relatório pessoal • gerado em ${new Date().toLocaleDateString('pt-BR')}</p><div class="panel report-filters"><h2>Filtros</h2><div class="two"><div><label>De</label><input id="reportFrom" type="date" value="${esc(reportFrom)}"></div><div><label>Até</label><input id="reportTo" type="date" value="${esc(reportTo)}"></div></div><label>Ciclo (aplicações e ciclos)</label><select id="reportCycle">${choices}</select><div class="row actions"><button type="button" class="primary" data-action="report-set">Aplicar filtros</button><button type="button" data-action="report-clear">Limpar filtros</button></div></div><div class="grid"><div class="metric"><span>Aplicações</span><strong>${apps.length}</strong></div><div class="metric"><span>Ciclos no período</span><strong>${cycles.length}</strong></div><div class="metric"><span>Pesagens</span><strong>${weights.length}</strong></div><div class="metric"><span>Variação do peso</span><strong>${delta === null ? '—' : (delta > 0 ? '+' : '') + num(delta) + ' kg'}</strong></div></div><div class="panel report-tools"><button type="button" class="primary" data-action="report-csv" data-id="applications">CSV aplicações</button><button type="button" data-action="report-csv" data-id="cycles">CSV ciclos</button><button type="button" data-action="report-csv" data-id="weights">CSV peso</button><button type="button" data-action="print">Imprimir / Salvar PDF</button></div><div class="panel"><h2>Aplicações</h2>${reportTable(['Data', 'Hora', 'Local', 'Ciclo', 'Compostos e doses', 'Observações'], reportAppRows(apps))}</div><div class="panel"><h2>Ciclos</h2>${reportTable(['Nome', 'Início', 'Fim', 'Estado', 'Dias ativos', 'Aplicações vinculadas'], reportCycleRows(cycles))}</div><div class="panel"><h2>Evolução de peso</h2>${reportTable(['Data', 'Peso', 'Diferença desde a pesagem anterior'], reportWeightRows(weights))}</div><p class="muted report-note">Relatório descritivo. O filtro de ciclo afeta aplicações e ciclos; pesagens usam apenas o intervalo de datas. A variação de peso não demonstra efeito de um composto. CSV e PDF contêm informações pessoais: guarde em local privado.</p>`;
+}
+function reports() {
+  return reportsLegacy()
+    .replace(/<div class="metric"><span>Pesagens<\/span>[\s\S]*?<\/div>/, '')
+    .replace(/<div class="metric"><span>Variação do peso<\/span>[\s\S]*?<\/div>/, '')
+    .replace(/<button type="button" data-action="report-csv" data-id="weights">[^<]*<\/button>/, '')
+    .replace(
+      /<div class="panel"><h2>Evolução de peso<\/h2>[\s\S]*?<\/div><p class="muted report-note">/,
+      '<p class="muted report-note">',
+    )
+    .replace(
+      /<p class="muted report-note">[\s\S]*?<\/p>/,
+      '<p class="muted report-note">Relatório descritivo. O filtro de ciclo afeta aplicações e ciclos. CSV e PDF contêm informações pessoais: guarde em local privado.</p>',
+    );
 }
 function csvCell(v) {
   let s = String(v ?? '');

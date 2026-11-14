@@ -241,7 +241,10 @@ label {
   border: 1px solid rgba(148, 163, 184, 0.25);
   border-radius: 99px;
   cursor: pointer;
-  transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+  transition:
+    color 0.2s ease,
+    border-color 0.2s ease,
+    background 0.2s ease;
 }
 .footer-actions button:hover {
   color: #fff;
@@ -265,8 +268,8 @@ footer .footer-backup button {
   border-radius: 99px;
 }
 .panel {
-  margin-bottom: 18px;
-  padding: 22px;
+  margin-bottom: 12px;
+  padding: 16px;
   color: var(--text);
   border: 1px solid var(--line);
   border-radius: 20px;
@@ -328,9 +331,9 @@ footer .footer-backup button {
 .item {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-bottom: 10px;
-  padding: 16px;
+  gap: 5px;
+  margin-bottom: 7px;
+  padding: 10px 12px;
   border: 1px solid var(--line);
   border-radius: 15px;
   background: rgba(14, 30, 51, 0.7);
@@ -660,7 +663,7 @@ dialog .warning {
     gap: 0;
   }
   .panel {
-    padding: 17px;
+    padding: 14px;
     border-radius: 17px;
   }
   .calendar-day,
