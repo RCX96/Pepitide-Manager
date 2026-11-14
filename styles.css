@@ -191,12 +191,13 @@ label {
 #bottom-nav {
   position: fixed;
   bottom: 16px;
-  left: 10px;
-  right: 10px;
+  left: 50%;
+  right: auto;
   z-index: 40;
   display: flex;
-  justify-content: flex-start;
-  width: auto;
+  justify-content: center;
+  width: max-content;
+  max-width: calc(100% - 20px);
   gap: 6px;
   padding: 8px;
   border: 1px solid rgba(148, 163, 184, 0.2);
@@ -206,7 +207,7 @@ label {
     0 18px 50px rgba(0, 0, 0, 0.35),
     0 0 0 1px rgba(255, 255, 255, 0.03) inset;
   backdrop-filter: blur(18px);
-  transform: none;
+  transform: translateX(-50%);
 }
 #bottom-nav button {
   min-width: 58px;
@@ -626,10 +627,14 @@ dialog .warning {
     padding-top: 23px;
   }
   #bottom-nav {
+    left: 7px;
+    right: 7px;
     bottom: 9px;
     width: calc(100% - 14px);
+    max-width: none;
     overflow-x: auto;
     justify-content: flex-start;
+    transform: none;
   }
   #bottom-nav button {
     min-width: 74px;
