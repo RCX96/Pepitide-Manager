@@ -706,16 +706,15 @@ dialog .warning {
     gap: 3px;
   }
   .calendar-grid {
-    grid-template-columns: repeat(7, minmax(118px, 118px));
+    grid-template-columns: repeat(7, minmax(0, 1fr));
     max-width: 100%;
-    padding: 0 64px 8px;
-    overflow-x: auto;
-    scrollbar-width: thin;
+    padding: 0;
+    overflow: hidden;
   }
   .calendar-grid .calendar-day,
   .calendar-grid .calendar-empty {
-    min-height: 112px;
-    padding: 7px;
+    min-height: 88px;
+    padding: 5px 3px;
   }
   .calendar-grid .calendar-day.selected {
     border-width: 2px;
@@ -728,8 +727,8 @@ dialog .warning {
     gap: 2px;
   }
   .cal-compounds span {
-    padding: 2px 5px;
-    font-size: 8px;
+    padding: 2px 2px;
+    font-size: 7px;
   }
   .calendar-count {
     padding: 2px 5px;
