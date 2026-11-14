@@ -26,6 +26,16 @@
 * {
   box-sizing: border-box;
 }
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
 html {
   min-height: 100%;
   background: #08111f;
@@ -653,8 +663,9 @@ dialog .warning {
     transform: none;
   }
   #bottom-nav button {
-    min-width: 74px;
-    padding-inline: 9px;
+    min-width: 62px;
+    padding-inline: 5px;
+    font-size: 10px;
   }
 }
 @media (max-width: 480px) {

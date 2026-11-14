@@ -253,6 +253,7 @@ const navs = [
   ['aplicacoes', '♢ Aplicações'],
   ['ciclos', '◷ Ciclos'],
   ['relatorios', '▤ Relatórios'],
+  ['configuracoes', '⚙ Ajustes'],
 ];
 function navHTML() {
   return navs
@@ -279,9 +280,9 @@ function syncNav() {
 }
 function extraPanels() {
   if (tab === 'aplicacoes') {
-    return `<div class="panel quick-filter"><h2>Buscar aplicações</h2><input id="applicationSearch" type="search" value="${esc(applicationFilter)}" placeholder="Composto, data ou observação" oninput="setApplicationFilter(this.value)"></div>`;
+    return `<div class="panel quick-filter"><h2>Buscar aplicações</h2><label class="sr-only" for="applicationSearch">Buscar aplicações</label><input id="applicationSearch" type="search" aria-label="Buscar aplicações" value="${esc(applicationFilter)}" placeholder="Composto, data ou observação" oninput="setApplicationFilter(this.value)"></div>`;
   }
-  if (tab === 'dados') {
+  if (tab === 'configuracoes') {
     const names = rememberedCompoundNames().filter(
       (n) =>
         !catalogFilter ||
@@ -338,7 +339,7 @@ function decorateCalendarCompounds() {
 function applicationsExtraPanel() {
   const names = rememberedCompoundNames();
   const history = historyCompound ? compoundHistory(historyCompound) : [];
-  return `<div class="panel"><h2>Histórico por composto</h2><select onchange="historyCompound=this.value;render()"><option value="">Escolha um composto</option>${names.map((n) => `<option value="${esc(n)}" ${historyCompound === n ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select>${historyCompound ? (history.length ? history.map((a) => `<div class="item"><b>${dateFmt(a.date)} ${esc(a.time || '')}</b><p>${a.compounds.map((c) => `${esc(c.name)} (${esc(c.dose)} ${esc(c.unit)})`).join(' + ')}</p><p class="muted">${esc(a.site || '')}</p></div>`).join('') : '<p class="empty">Nenhum registro para este composto.</p>') : '<p class="muted">Veja todas as aplicações de um composto.</p>'}</div>`;
+  return `<div class="panel"><h2>Histórico por composto</h2><label for="historyCompound">Composto</label><select id="historyCompound" aria-label="Filtrar histórico por composto" onchange="historyCompound=this.value;render()"><option value="">Escolha um composto</option>${names.map((n) => `<option value="${esc(n)}" ${historyCompound === n ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select>${historyCompound ? (history.length ? history.map((a) => `<div class="item"><b>${dateFmt(a.date)} ${esc(a.time || '')}</b><p>${a.compounds.map((c) => `${esc(c.name)} (${esc(c.dose)} ${esc(c.unit)})`).join(' + ')}</p></div>`).join('') : '<p class="empty">Nenhum registro para este composto.</p>') : '<p class="muted">Veja todas as aplicações de um composto.</p>'}</div>`;
 }
 function encryptedBackupPanel() {
   return `<div class="panel"><h2>Backup criptografado</h2><p class="muted">Protege o arquivo com AES-256-GCM. A senha não fica salva no aplicativo.</p><div class="row">${button('Exportar criptografado', 'export-encrypted', '', 'primary')}${button('Importar criptografado', 'import-encrypted')}</div></div>`;
@@ -372,7 +373,7 @@ function render() {
     ciclos: cycles,
     peso: weight,
     relatorios: reports,
-    dados: dataPage,
+    configuracoes: dataPage,
   }[tab]();
   suppressHomeCalendar = false;
   if (tab === 'inicio') {
@@ -382,7 +383,7 @@ function render() {
       .replace(/<button[^>]*data-id="peso"[^>]*>[^<]*<\/button>/, '');
     $('app').innerHTML = calendarPage() + $('app').innerHTML;
   }
-  if (tab === 'aplicacoes' || tab === 'dados') {
+  if (tab === 'aplicacoes' || tab === 'configuracoes') {
     appendRendered(extraPanels());
   }
   if (tab === 'aplicacoes') {
@@ -401,7 +402,7 @@ function render() {
       }
     }
   }
-  if (tab === 'dados') {
+  if (tab === 'configuracoes') {
     appendRendered(encryptedBackupPanel());
   }
   decorateCalendarCompounds();
@@ -637,7 +638,7 @@ function compoundFields() {
   return compounds
     .map(
       (c, i) =>
-        `<div class="item"><div class="row between"><b>Composto ${i + 1}</b>${compounds.length > 1 ? button('Remover', 'remove-compound', i, 'danger') : ''}</div><label>Nome</label><input list="compoundNames" value="${esc(c.name)}" oninput="compounds[${i}].name=this.value" onblur="const last=lastCompoundEntry(this.value);if(last&&!compounds[${i}].dose){compounds[${i}].dose=last.dose;compounds[${i}].unit=last.unit;$('compoundList').innerHTML=compoundFields()}" placeholder="Nome do composto"><div class="two"><div><label>Dose</label><input type="number" min="0" step="any" value="${esc(c.dose)}" oninput="compounds[${i}].dose=this.value" placeholder="Ex.: 1.5"></div><div><label>Unidade</label><select onchange="compounds[${i}].unit=this.value">${['mg', 'mcg', 'mL', 'UI'].map((u) => `<option ${c.unit === u ? 'selected' : ''}>${u}</option>`).join('')}</select></div></div></div>`,
+        `<div class="item"><div class="row between"><b>Composto ${i + 1}</b>${compounds.length > 1 ? button('Remover', 'remove-compound', i, 'danger') : ''}</div><label for="compoundName${i}">Nome</label><input id="compoundName${i}" list="compoundNames" aria-label="Nome do composto ${i + 1}" value="${esc(c.name)}" oninput="compounds[${i}].name=this.value" onblur="const last=lastCompoundEntry(this.value);if(last&&!compounds[${i}].dose){compounds[${i}].dose=last.dose;compounds[${i}].unit=last.unit;$('compoundList').innerHTML=compoundFields()}" placeholder="Nome do composto"><div class="two"><div><label for="compoundDose${i}">Dose</label><input id="compoundDose${i}" aria-label="Dose do composto ${i + 1}" type="number" min="0" step="any" value="${esc(c.dose)}" oninput="compounds[${i}].dose=this.value" placeholder="Ex.: 1.5"></div><div><label for="compoundUnit${i}">Unidade</label><select id="compoundUnit${i}" aria-label="Unidade do composto ${i + 1}" onchange="compounds[${i}].unit=this.value">${['mg', 'mcg', 'mL', 'UI'].map((u) => `<option ${c.unit === u ? 'selected' : ''}>${u}</option>`).join('')}</select></div></div></div>`,
     )
     .join('');
 }
@@ -686,7 +687,7 @@ function applications() {
     .sort((x, y) => y.date.localeCompare(x.date));
   const a = editing ? db.applications.find((x) => x.id === editing) : appDraft;
   const mode = editing ? 'Editar' : a && a._isCopy === true ? 'Nova (cópia)' : 'Nova';
-  return `<h1>Aplicações</h1><div class="panel"><h2>${mode} aplicação • uma seringa</h2><form id="appForm" onsubmit="submitApp(event)"><div class="two"><div><label>Data</label><input name="date" type="date" required value="${a?.date || today()}"></div><div><label>Horário (opcional)</label><input name="time" type="time" value="${a?.time || ''}"></div></div><label>Local da aplicação</label><select name="site">${['Abdômen', 'Coxa', 'Braço', 'Outro', 'Não informado'].map((s) => `<option ${a?.site === s ? 'selected' : ''}>${s}</option>`).join('')}</select><label>Ciclo (opcional)</label><select name="cycleId"><option value="">Sem ciclo</option>${db.cycles
+  return `<h1>Aplicações</h1><div class="panel"><h2>${mode} aplicação • uma seringa</h2><form id="appForm" onsubmit="submitApp(event)"><div class="two"><div><label for="appDate">Data</label><input id="appDate" name="date" type="date" required value="${a?.date || today()}"></div><div><label for="appTime">Horário (opcional)</label><input id="appTime" name="time" type="time" value="${a?.time || ''}"></div></div><label for="appCycle">Ciclo obrigatório</label><select id="appCycle" name="cycleId"><option value="">Sem ciclo</option>${db.cycles
     .filter((c) => CYCLE_ID_RE.test(c.id))
     .map(
       (c) =>
@@ -694,12 +695,12 @@ function applications() {
     )
     .join(
       '',
-    )}</select>${compoundNameList()}<div id="compoundList">${compoundFields()}</div>${button('+ Adicionar composto', 'add-compound')}<label>Observações</label><textarea name="notes" placeholder="Observações opcionais">${esc(a?.notes || '')}</textarea><p class="muted">Os nomes dos compostos ficam salvos neste navegador e aparecem como sugestões na próxima aplicação.</p><p class="warning">Compostos no mesmo registro representam a mesma seringa. O aplicativo não verifica compatibilidade.</p><div class="row actions"><button class="primary" type="submit">${a ? 'Salvar alterações' : 'Salvar aplicação'}</button>${a ? button('Cancelar', 'cancel-app') : ''}</div></form></div><div class="panel"><h2>Histórico de aplicações</h2>${
+    )}</select>${compoundNameList()}<div id="compoundList">${compoundFields()}</div>${button('+ Adicionar composto', 'add-compound')}<label for="appNotes">Observações</label><textarea id="appNotes" name="notes" placeholder="Observações opcionais">${esc(a?.notes || '')}</textarea><p class="muted">Os nomes dos compostos ficam salvos neste navegador e aparecem como sugestões na próxima aplicação.</p><p class="warning">Compostos no mesmo registro representam a mesma seringa. O aplicativo não verifica compatibilidade.</p><div class="row actions"><button class="primary" type="submit">${a ? 'Salvar alterações' : 'Salvar aplicação'}</button>${a ? button('Cancelar', 'cancel-app') : ''}</div></form></div><div class="panel"><h2>Histórico de aplicações</h2>${
     visible.length
       ? visible
           .map(
             (x) =>
-              `<div class="item"><div class="row between"><b>${dateFmt(x.date)} ${esc(x.time || '')}</b><span class="muted">${esc(x.site)}</span></div><p>${x.compounds.map((c) => `${esc(c.name)} (${esc(c.dose)} ${esc(c.unit)})`).join(' + ')}</p><p class="muted">${esc(db.cycles.find((c) => c.id === x.cycleId)?.name || 'Sem ciclo')} ${x.notes ? '• ' + esc(x.notes) : ''}</p><div class="row">${button('Duplicar', 'copy-app', x.id)}${button('Editar', 'edit-app', x.id)}${button('Excluir', 'delete-app', x.id, 'danger')}</div></div>`,
+              `<div class="item"><div class="row between"><b>${dateFmt(x.date)} ${esc(x.time || '')}</b></div><p>${x.compounds.map((c) => `${esc(c.name)} (${esc(c.dose)} ${esc(c.unit)})`).join(' + ')}</p><p class="muted">${esc(db.cycles.find((c) => c.id === x.cycleId)?.name || 'Sem ciclo')} ${x.notes ? '• ' + esc(x.notes) : ''}</p><div class="row">${button('Duplicar', 'copy-app', x.id)}${button('Editar', 'edit-app', x.id)}${button('Excluir', 'delete-app', x.id, 'danger')}</div></div>`,
           )
           .join('')
       : '<p class="empty">Nenhuma aplicação registrada.</p>'
@@ -1036,9 +1037,11 @@ function deleteTrash(id) {
   save();
 }
 function dataPage() {
-  const trash = Array.isArray(db.trash) ? db.trash : [];
-  const names = { applications: 'Aplicação', cycles: 'Ciclo', weights: 'Pesagem' };
-  return `<h1>Dados e backup</h1><div class="panel"><h2>Backup avançado</h2><p class="muted">Backup JSON com verificação SHA-256, ciclos, aplicações, pesagens, meta e lixeira. Guarde uma cópia fora deste navegador.</p><p class="muted" id="backupStatus">${backupStatusText()}</p><div class="row">${button('Baixar backup verificado', 'export-data', '', 'primary')}${button('Compartilhar / Drive', 'share-backup')}</div><p class="muted">No Android, escolha Google Drive na tela de compartilhamento, se disponível. O envio não é automático. A data indica somente que o arquivo foi preparado, não que foi salvo no Drive.</p></div><div class="panel"><h2>Diagnóstico de integridade</h2><p class="muted">Verifique a estrutura dos dados salvos neste navegador antes de atualizar o aplicativo. Esta verificação não altera registros.</p>${button('Verificar dados locais', 'verify-local')}</div><div class="panel"><h2>Restaurar backup</h2><p class="warning">O arquivo é verificado antes da restauração, inclusive o SHA-256 quando presente. A substituição exige confirmação. Faça um backup externo dos registros atuais antes.</p><input type="file" id="restoreFile" accept="application/json,.json"><div class="actions">${button('Importar arquivo', 'import-data')}</div></div><div class="panel"><h2>Lixeira • ${trash.length} registro(s)</h2><p class="muted">Aplicações, ciclos e pesagens excluídos podem ser recuperados. Ao restaurar um ciclo, suas aplicações anteriormente desvinculadas não são religadas automaticamente.</p>${
+  const trash = (Array.isArray(db.trash) ? db.trash : []).filter((t) =>
+    ['applications', 'cycles'].includes(t.type),
+  );
+  const names = { applications: 'Aplicação', cycles: 'Ciclo' };
+  return `<h1>Ajustes</h1><div class="panel"><h2>Backup avançado</h2><p class="muted">Backup JSON com verificação SHA-256, aplicações, ciclos, catálogo e lixeira. Guarde uma cópia fora deste navegador.</p><p class="muted" id="backupStatus">${backupStatusText()}</p><div class="row">${button('Baixar backup verificado', 'export-data', '', 'primary')}${button('Compartilhar / Drive', 'share-backup')}</div><p class="muted">No Android, escolha Google Drive na tela de compartilhamento, se disponível. O envio não é automático.</p></div><div class="panel"><h2>Diagnóstico de integridade</h2><p class="muted">Verifique a estrutura dos dados salvos neste navegador. Esta verificação não altera registros.</p>${button('Verificar dados locais', 'verify-local')}</div><div class="panel"><h2>Restaurar backup</h2><p class="warning">O arquivo é verificado antes da restauração. A substituição exige confirmação. Faça um backup externo dos registros atuais antes.</p><label for="restoreFile">Arquivo JSON</label><input type="file" id="restoreFile" accept="application/json,.json"><div class="actions">${button('Importar arquivo', 'import-data')}</div></div><div class="panel"><h2>Lixeira • ${trash.length} registro(s)</h2><p class="muted">Aplicações e ciclos excluídos podem ser recuperados.</p>${
     trash.length
       ? trash
           .slice()
