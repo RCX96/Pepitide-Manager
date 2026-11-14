@@ -459,6 +459,9 @@ textarea {
   grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 6px;
 }
+.calendar-week-grid {
+  grid-template-rows: auto 78px;
+}
 .calendar-weekday {
   padding: 8px 0;
   color: var(--muted);
@@ -718,6 +721,9 @@ dialog .warning {
   }
   .calendar-grid {
     gap: 2px;
+  }
+  .calendar-week-grid {
+    grid-template-rows: 22px 58px;
   }
   .calendar-grid {
     grid-template-columns: repeat(7, minmax(0, 1fr));
