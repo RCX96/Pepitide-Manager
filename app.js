@@ -287,7 +287,7 @@ function extraPanels() {
     return `<div class="panel"><div class="row between"><h2>Próximas aplicações</h2>${button('Novo lembrete', 'new-reminder', '', 'primary')}</div>${upcoming.length ? upcoming.map((r) => `<div class="item"><div class="row between"><b>${esc(r.compoundName)}</b><span class="pill">${dateFmt(r.date)}${r.time ? ' â€¢ ' + esc(r.time) : ''}</span></div><p class="muted">${r.repeat === 'daily' ? 'Todos os dias' : r.repeat === 'weekly' ? 'Semanal' : 'Uma vez'}</p><div class="row">${button('Registrar agora', 'quick-reminder', r.id)}${button('Excluir', 'delete-reminder', r.id, 'danger')}</div></div>`).join('') : '<p class="empty">Nenhum lembrete ativo.</p>'}</div>`;
   }
   if (tab === 'aplicacoes') {
-    return `<div class="panel quick-filter"><h2>Buscar aplicações</h2><input id="applicationSearch" type="search" value="${esc(applicationFilter)}" placeholder="Composto, data, local ou observação" oninput="setApplicationFilter(this.value)"></div>`;
+    return `<div class="panel quick-filter"><h2>Buscar aplicações</h2><input id="applicationSearch" type="search" value="${esc(applicationFilter)}" placeholder="Composto, data ou observação" oninput="setApplicationFilter(this.value)"></div>`;
   }
   if (tab === 'dados') {
     const names = rememberedCompoundNames().filter(
@@ -368,6 +368,10 @@ function render() {
     appendRendered(extraPanels());
   }
   if (tab === 'aplicacoes') {
+    $('app').innerHTML = $('app').innerHTML.replace(
+      /<label>Local da aplicação<\/label><select name="site">[\s\S]*?<\/select>/,
+      '',
+    );
     $('app').innerHTML = $('app').innerHTML.replace('Ciclo (opcional)', 'Ciclo obrigatório');
     appendRendered(applicationsExtraPanel());
     const cycleSelect = document.querySelector('select[name="cycleId"]');
@@ -689,8 +693,8 @@ function applications() {
 function submitApp(e) {
   e.preventDefault();
   const f = new FormData(e.target);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(f.get('date'))) || !f.get('site')) {
-    alert('Informe uma data e um local válidos.');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(f.get('date')))) {
+    alert('Informe uma data válida.');
     return;
   }
   if (
@@ -714,7 +718,7 @@ function submitApp(e) {
     id: editing || uid(),
     date: f.get('date'),
     time: f.get('time'),
-    site: f.get('site'),
+    site: f.get('site') || '',
     cycleId,
     notes: f.get('notes'),
     compounds: compounds.map((c) => ({ ...c, dose: Number(c.dose) })),
