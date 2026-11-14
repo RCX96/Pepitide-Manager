@@ -252,7 +252,6 @@ const navs = [
   ['inicio', '⌂ Início'],
   ['aplicacoes', '♢ Aplicações'],
   ['ciclos', '◷ Ciclos'],
-  ['peso', '⌁ Peso'],
   ['calendario', '▦ Calendário'],
   ['relatorios', '▤ Relatórios'],
 ];
@@ -393,6 +392,10 @@ function render() {
   }[tab]();
   suppressHomeCalendar = false;
   if (tab === 'inicio') {
+    $('app').innerHTML = $('app').innerHTML
+      .replace(/<div class="metric"><span>Peso atual<\/span>[\s\S]*?<\/div>/, '')
+      .replace(/<div class="metric"><span>Meta de peso<\/span>[\s\S]*?<\/div>/, '')
+      .replace(/<button[^>]*data-id="peso"[^>]*>[^<]*<\/button>/, '');
     $('app').innerHTML = calendarPage() + $('app').innerHTML;
   }
   if (tab === 'aplicacoes' || tab === 'dados') {
