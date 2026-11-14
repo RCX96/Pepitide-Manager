@@ -458,3 +458,12 @@ test('homeCalendar mostra os compostos de cada dia e gera acesso rápido por dat
   assert.match(html, /data-id="2026-11-02"[\s\S]*?Semaglutida/);
 });
 
+test('compoundsOnDate lista os compostos aplicados no dia sem duplicar nomes', () => {
+  const testApp = loadApp();
+  testApp.db.applications = [
+    { date: '2026-11-14', compounds: [{ name: 'Semaglutida' }, { name: 'semaglutida' }] },
+    { date: '2026-11-14', compounds: [{ name: 'BPC-157' }] },
+  ];
+  assert.deepEqual(Array.from(testApp.compoundsOnDate('2026-11-14')), ['Semaglutida', 'BPC-157']);
+});
+

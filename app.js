@@ -315,6 +315,32 @@ function animateRender() {
     }
   });
 }
+function compoundsOnDate(date) {
+  return uniqueCompoundNames(
+    db.applications
+      .filter((a) => a.date === date)
+      .flatMap((a) => (a.compounds || []).map((c) => c.name)),
+  );
+}
+function decorateCalendarCompounds() {
+  const app = $('app');
+  if (!app || typeof app.querySelectorAll !== 'function') {
+    return;
+  }
+  app.querySelectorAll('.calendar-day').forEach((day) => {
+    const date = day.getAttribute('data-id');
+    const summary = day.querySelector('.calendar-count');
+    if (!date || !summary) {
+      return;
+    }
+    const names = compoundsOnDate(date);
+    summary.textContent = names.length ? names.join(' · ') : 'Sem composto';
+    day.setAttribute(
+      'aria-label',
+      `${dateFmt(date)}: ${names.length ? names.join(', ') : 'Nenhum composto'}`,
+    );
+  });
+}
 function applicationsExtraPanel() {
   const names = rememberedCompoundNames();
   const history = historyCompound ? compoundHistory(historyCompound) : [];
@@ -393,6 +419,7 @@ function render() {
   if (tab === 'dados') {
     appendRendered(encryptedBackupPanel());
   }
+  decorateCalendarCompounds();
   animateRender();
 }
 function confirmDelete(type, id) {
