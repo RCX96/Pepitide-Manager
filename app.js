@@ -335,7 +335,9 @@ function decorateCalendarCompounds() {
       return;
     }
     const names = compoundsOnDate(date);
-    summary.textContent = names.length ? names.join(' · ') : 'Sem composto';
+    summary.innerHTML = names.length
+      ? names.map((name) => `<span class="calendar-compound">${esc(name)}</span>`).join('')
+      : '<span class="calendar-compound empty">Sem composto</span>';
     day.setAttribute(
       'aria-label',
       `${dateFmt(date)}: ${names.length ? names.join(', ') : 'Nenhum composto'}`,
@@ -499,7 +501,7 @@ function cycleDuration(c) {
   return `${days} dia${days === 1 ? '' : 's'} de ciclo`;
 }
 
-let calendarView = 'month',
+let calendarView = 'week',
   calendarFocus = today().slice(0, 7),
   calendarSelected = today();
 function calUTC(s) {

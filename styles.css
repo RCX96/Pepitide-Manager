@@ -475,11 +475,23 @@ textarea {
   box-shadow: inset 0 0 0 1px var(--violet);
 }
 .calendar-count {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
   align-self: flex-start;
+  padding: 0;
+  background: transparent;
+}
+.calendar-compound {
+  display: inline-block;
+  max-width: 100%;
   padding: 3px 7px;
+  overflow: hidden;
   color: #07151e;
   font-size: 10px;
   font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   border-radius: 99px;
   background: #ffcf70;
 }
