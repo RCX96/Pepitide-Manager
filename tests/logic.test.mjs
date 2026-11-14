@@ -312,6 +312,17 @@ test('index.html não contém handlers onclick inline', () => {
   assert.equal(/\sonclick=/i.test(html), false);
 });
 
+test('menu não exibe a seção Dados', () => {
+  assert.equal(/data-id="dados"/i.test(html), false);
+});
+
+test('calendário de aplicações renderiza a grade reutilizável', () => {
+  const testApp = loadApp();
+  const rendered = testApp.calendarPage();
+  assert.equal(rendered.includes('Calendário de aplicações'), true);
+  assert.equal(rendered.includes('calendar-grid'), true);
+});
+
 test('renderização de ciclos utiliza data-action e data-id sem onclick inline', () => {
   const testApp = loadApp();
   testApp.db.cycles = [

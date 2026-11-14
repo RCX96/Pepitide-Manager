@@ -254,7 +254,6 @@ const navs = [
   ['peso', '⌁ Peso'],
   ['calendario', '▦ Calendário'],
   ['relatorios', '▤ Relatórios'],
-  ['dados', '⚙ Dados'],
 ];
 function navHTML() {
   return navs
@@ -362,11 +361,23 @@ function render() {
     relatorios: reports,
     dados: dataPage,
   }[tab]();
+  if (tab === 'inicio') {
+    $('app').innerHTML = calendarPage() + $('app').innerHTML;
+  }
   if (tab === 'aplicacoes' || tab === 'dados') {
     appendRendered(extraPanels());
   }
   if (tab === 'aplicacoes') {
+    $('app').innerHTML = $('app').innerHTML.replace('Ciclo (opcional)', 'Ciclo obrigatório');
     appendRendered(applicationsExtraPanel());
+    const cycleSelect = document.querySelector('select[name="cycleId"]');
+    if (cycleSelect) {
+      cycleSelect.required = true;
+      const emptyCycle = cycleSelect.querySelector('option[value=""]');
+      if (emptyCycle) {
+        emptyCycle.textContent = 'Selecione um ciclo';
+      }
+    }
   }
   if (tab === 'inicio') {
     appendRendered(extraPanels());
@@ -694,12 +705,17 @@ function submitApp(e) {
     alert('Preencha o nome e uma dose maior que zero para cada composto.');
     return;
   }
+  const cycleId = String(f.get('cycleId') || '');
+  if (!CYCLE_ID_RE.test(cycleId) || !db.cycles.some((c) => c.id === cycleId)) {
+    alert('Selecione um ciclo válido para vincular a aplicação.');
+    return;
+  }
   const item = {
     id: editing || uid(),
     date: f.get('date'),
     time: f.get('time'),
     site: f.get('site'),
-    cycleId: f.get('cycleId') || null,
+    cycleId,
     notes: f.get('notes'),
     compounds: compounds.map((c) => ({ ...c, dose: Number(c.dose) })),
   };
