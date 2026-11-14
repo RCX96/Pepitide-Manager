@@ -335,6 +335,14 @@ function decorateCalendarCompounds() {
       `${dateFmt(date)}: ${names.length ? names.join(', ') : 'Nenhum composto'}`,
     );
   });
+  const selected = app.querySelector('.calendar-day.selected');
+  const grid = selected?.closest('.calendar-grid');
+  if (selected && grid && window.matchMedia?.('(max-width: 700px)').matches) {
+    grid.scrollLeft = Math.max(
+      0,
+      selected.offsetLeft - (grid.clientWidth - selected.offsetWidth) / 2,
+    );
+  }
 }
 function applicationsExtraPanel() {
   const names = rememberedCompoundNames();
@@ -613,7 +621,7 @@ function homeCalendar() {
       <p class="calendar-month-title">${monthTitle}</p>
       <p class="muted">Registros do mês. Clique em um dia para cadastrar aplicação na data indicada.</p>
       <div class="calendar-grid">${weekdayHTML}</div>
-      <div class="calendar-grid">${cells}</div>
+      <div class="calendar-grid calendar-date-grid">${cells}</div>
     </div>`;
 }
 

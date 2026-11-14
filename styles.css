@@ -705,6 +705,21 @@ dialog .warning {
   .calendar-grid {
     gap: 3px;
   }
+  .calendar-grid {
+    grid-template-columns: repeat(7, minmax(168px, 168px));
+    max-width: 100%;
+    padding: 0 64px 8px;
+    overflow-x: auto;
+    scrollbar-width: thin;
+  }
+  .calendar-grid .calendar-day,
+  .calendar-grid .calendar-empty {
+    min-height: 160px;
+    padding: 10px;
+  }
+  .calendar-grid .calendar-day.selected {
+    border-width: 2px;
+  }
   .cal-cell {
     min-height: 62px;
     padding: 5px 3px;
