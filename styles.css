@@ -713,8 +713,8 @@ dialog .warning {
   }
   .calendar-grid .calendar-day,
   .calendar-grid .calendar-empty {
-    min-height: 88px;
-    padding: 5px 3px;
+    min-height: 64px;
+    padding: 4px 2px;
   }
   .calendar-grid .calendar-day.selected {
     border-width: 2px;
@@ -724,11 +724,11 @@ dialog .warning {
     padding: 5px 3px;
   }
   .cal-compounds {
-    gap: 2px;
+    gap: 1px;
   }
   .cal-compounds span {
-    padding: 2px 2px;
-    font-size: 7px;
+    padding: 1px 2px;
+    font-size: 6px;
   }
   .calendar-count {
     padding: 2px 5px;
