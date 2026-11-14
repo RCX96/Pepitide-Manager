@@ -252,7 +252,6 @@ const navs = [
   ['inicio', '⌂ Início'],
   ['aplicacoes', '♢ Aplicações'],
   ['ciclos', '◷ Ciclos'],
-  ['calendario', '▦ Calendário'],
   ['relatorios', '▤ Relatórios'],
 ];
 function navHTML() {
@@ -372,7 +371,6 @@ function render() {
     aplicacoes: applications,
     ciclos: cycles,
     peso: weight,
-    calendario: calendarPage,
     relatorios: reports,
     dados: dataPage,
   }[tab]();
@@ -402,9 +400,6 @@ function render() {
         emptyCycle.textContent = 'Selecione um ciclo';
       }
     }
-  }
-  if (tab === 'calendario') {
-    // Lembretes não aparecem nesta tela.
   }
   if (tab === 'dados') {
     appendRendered(encryptedBackupPanel());

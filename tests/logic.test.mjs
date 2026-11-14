@@ -316,6 +316,10 @@ test('menu não exibe a seção Dados', () => {
   assert.equal(/data-id="dados"/i.test(html), false);
 });
 
+test('menu não exibe uma página separada de calendário', () => {
+  assert.equal(/data-id="calendario"/i.test(html), false);
+});
+
 test('calendário de aplicações renderiza a grade reutilizável', () => {
   const testApp = loadApp();
   const rendered = testApp.calendarPage();
