@@ -1,4 +1,4 @@
-const CACHE = 'peptide-manager-shell-v2.18';
+const CACHE = 'peptide-manager-shell-v2.19';
 const ASSETS = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', (event) => {

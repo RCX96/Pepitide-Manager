@@ -32,7 +32,15 @@ let tab = 'inicio',
   compounds = [{ name: '', dose: '', unit: 'mg' }],
   applicationFilter = '',
   catalogFilter = '',
-  suppressHomeCalendar = false;
+  suppressHomeCalendar = false,
+  supabaseClient = null,
+  supabaseUser = null,
+  supabaseSyncStatus = '',
+  supabaseLastSync =
+    typeof localStorage !== 'undefined'
+      ? localStorage.getItem('peptide-supabase-last-sync') || ''
+      : '',
+  syncTimer = null;
 const LOCK_KEY = 'peptide-manager-lock-v1';
 let unlocked = !localStorage.getItem(LOCK_KEY);
 const $ = (id) => document.getElementById(id),
@@ -50,6 +58,7 @@ const save = () => {
   try {
     validateBackup(db);
     localStorage.setItem(KEY, JSON.stringify(db));
+    scheduleCloudSync();
     render();
   } catch (e) {
     alert(
@@ -1037,12 +1046,225 @@ function deleteTrash(id) {
   db.trash = db.trash.filter((x) => x.trashId !== id);
   save();
 }
+function getSupabaseConfig() {
+  const url =
+    (typeof localStorage !== 'undefined' && localStorage.getItem('peptide-supabase-url')) ||
+    'https://bcmshjfolhetogfkebnj.supabase.co';
+  const key =
+    (typeof localStorage !== 'undefined' && localStorage.getItem('peptide-supabase-key')) || '';
+  return { url, key };
+}
+
+function initSupabase() {
+  const { url, key } = getSupabaseConfig();
+  if (!url || !key) {
+    supabaseClient = null;
+    return null;
+  }
+  const createFn =
+    (typeof window !== 'undefined' && window.supabase && window.supabase.createClient) ||
+    (typeof supabase !== 'undefined' && supabase.createClient);
+  if (!createFn) {
+    return null;
+  }
+  try {
+    if (!supabaseClient) {
+      supabaseClient = createFn(url, key, {
+        auth: {
+          persistSession: true,
+          autoRefreshToken: true,
+        },
+      });
+      supabaseClient.auth
+        .getSession()
+        .then(({ data }) => {
+          if (data?.session?.user) {
+            supabaseUser = data.session.user;
+            supabaseSyncStatus = 'Conectado';
+            pullFromCloud();
+          }
+        })
+        .catch(() => {});
+      supabaseClient.auth.onAuthStateChange((event, session) => {
+        supabaseUser = session?.user || null;
+        if (session?.user && event === 'SIGNED_IN') {
+          pullFromCloud();
+        }
+        if (tab === 'configuracoes') {
+          render();
+        }
+      });
+    }
+    return supabaseClient;
+  } catch (err) {
+    console.error('Falha ao inicializar Supabase:', err);
+    return null;
+  }
+}
+
+function scheduleCloudSync() {
+  if (!supabaseClient || !supabaseUser) {
+    return;
+  }
+  if (syncTimer) {
+    clearTimeout(syncTimer);
+  }
+  syncTimer = setTimeout(pushToCloud, 800);
+}
+
+async function pushToCloud() {
+  if (!supabaseClient || !supabaseUser) {
+    return;
+  }
+  try {
+    supabaseSyncStatus = 'Sincronizando...';
+    if (tab === 'configuracoes') {
+      render();
+    }
+    const payload = {
+      user_id: supabaseUser.id,
+      data: db,
+      updated_at: new Date().toISOString(),
+    };
+    const { error } = await supabaseClient
+      .from('user_data')
+      .upsert(payload, { onConflict: 'user_id' });
+    if (error) {
+      supabaseSyncStatus = 'Erro ao sincronizar';
+      console.warn('Erro ao salvar no Supabase:', error.message);
+    } else {
+      supabaseSyncStatus = 'Sincronizado';
+      supabaseLastSync = new Date().toLocaleTimeString('pt-BR', {
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('peptide-supabase-last-sync', supabaseLastSync);
+      }
+    }
+  } catch {
+    supabaseSyncStatus = 'Offline';
+  }
+  if (tab === 'configuracoes') {
+    render();
+  }
+}
+
+async function pullFromCloud() {
+  if (!supabaseClient || !supabaseUser) {
+    return;
+  }
+  try {
+    supabaseSyncStatus = 'Carregando dados...';
+    if (tab === 'configuracoes') {
+      render();
+    }
+    const { data, error } = await supabaseClient
+      .from('user_data')
+      .select('data, updated_at')
+      .eq('user_id', supabaseUser.id)
+      .maybeSingle();
+
+    if (error) {
+      console.warn('Erro ao ler do Supabase:', error.message);
+      supabaseSyncStatus = 'Erro ao carregar';
+      return;
+    }
+
+    if (data?.data && typeof data.data === 'object') {
+      const cloudDb = data.data;
+      if (Array.isArray(cloudDb.applications) && Array.isArray(cloudDb.cycles)) {
+        const localCount = db.applications.length + db.cycles.length;
+        const cloudCount = cloudDb.applications.length + cloudDb.cycles.length;
+        if (localCount === 0 || cloudCount > localCount) {
+          db = { ...db, ...cloudDb };
+          if (typeof localStorage !== 'undefined') {
+            localStorage.setItem(KEY, JSON.stringify(db));
+          }
+          render();
+        }
+      }
+    } else {
+      await pushToCloud();
+    }
+    supabaseSyncStatus = 'Sincronizado';
+    supabaseLastSync = new Date().toLocaleTimeString('pt-BR', {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('peptide-supabase-last-sync', supabaseLastSync);
+    }
+  } catch {
+    supabaseSyncStatus = 'Offline';
+  }
+  if (tab === 'configuracoes') {
+    render();
+  }
+}
+
+async function handleSupabaseAuth(mode, email, password) {
+  if (!supabaseClient) {
+    initSupabase();
+  }
+  if (!supabaseClient) {
+    alert('Conecte o Supabase primeiro informando a chave pública.');
+    return;
+  }
+  if (!email || !password) {
+    alert('Preencha e-mail e senha.');
+    return;
+  }
+  try {
+    if (mode === 'signup') {
+      const { data, error } = await supabaseClient.auth.signUp({ email, password });
+      if (error) {
+        alert('Erro ao cadastrar: ' + error.message);
+      } else {
+        alert(
+          'Conta cadastrada com sucesso! ' +
+            (data?.session
+              ? 'Você já está conectado.'
+              : 'Verifique seu e-mail para confirmar a conta se necessário.'),
+        );
+      }
+    } else if (mode === 'signin') {
+      const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+      if (error) {
+        alert('Falha ao entrar: ' + error.message);
+      }
+    }
+  } catch (e) {
+    alert('Erro de conexão: ' + e.message);
+  }
+}
+
+async function handleSupabaseSignOut() {
+  if (supabaseClient) {
+    await supabaseClient.auth.signOut();
+    supabaseUser = null;
+    supabaseSyncStatus = '';
+    render();
+  }
+}
+
+function cloudSyncPanel() {
+  const { url, key } = getSupabaseConfig();
+  if (!key) {
+    return `<div class="panel"><h2>Sincronização na Nuvem</h2><p class="muted">Conecte sua conta Supabase para salvar seus dados online gratuitamente.</p><label for="cloudUrl">URL do Supabase</label><input type="url" id="cloudUrl" value="${esc(url || 'https://bcmshjfolhetogfkebnj.supabase.co')}" placeholder="https://....supabase.co"><label for="cloudKey">Chave pública (anon key)</label><input type="password" id="cloudKey" placeholder="Cole sua anon key do Supabase"><div class="row actions">${button('Conectar Supabase', 'cloud-connect', '', 'primary')}</div></div>`;
+  }
+  if (!supabaseUser) {
+    return `<div class="panel"><h2>Sincronização na Nuvem</h2><p class="muted">Projeto conectado • Entre ou crie sua conta pessoal</p><label for="cloudEmail">E-mail</label><input type="email" id="cloudEmail" placeholder="seu@email.com"><label for="cloudPassword">Senha</label><input type="password" id="cloudPassword" placeholder="Sua senha"><div class="row actions">${button('Entrar', 'cloud-login', '', 'primary')}${button('Criar conta', 'cloud-signup')}${button('Desconectar', 'cloud-disconnect', '', 'danger')}</div></div>`;
+  }
+  return `<div class="panel"><h2>Sincronização na Nuvem</h2><p><strong>Conta:</strong> ${esc(supabaseUser.email)}</p><p class="muted">Status: <span class="pill">${esc(supabaseSyncStatus || 'Sincronizado')}</span> ${supabaseLastSync ? '• ' + esc(supabaseLastSync) : ''}</p><div class="row actions">${button('Sincronizar agora', 'cloud-sync', '', 'primary')}${button('Sair da conta', 'cloud-logout')}${button('Desconectar', 'cloud-disconnect', '', 'danger')}</div></div>`;
+}
+
 function dataPage() {
   const trash = (Array.isArray(db.trash) ? db.trash : []).filter((t) =>
     ['applications', 'cycles'].includes(t.type),
   );
   const names = { applications: 'Aplicação', cycles: 'Ciclo' };
-  return `<h1>Ajustes</h1><div class="panel"><h2>Backup</h2><p class="muted" id="backupStatus">${backupStatusText()}</p><div class="row">${button('Baixar backup JSON', 'export-data', '', 'primary')}${button('Compartilhar', 'share-backup')}</div></div><div class="panel"><h2>Restaurar backup</h2><input type="file" id="restoreFile" accept="application/json,.json"><div class="actions">${button('Importar arquivo', 'import-data')}</div></div><div class="panel"><h2>Lixeira • ${trash.length} registro(s)</h2>${
+  return `<h1>Ajustes</h1>${cloudSyncPanel()}<div class="panel"><h2>Backup</h2><p class="muted" id="backupStatus">${backupStatusText()}</p><div class="row">${button('Baixar backup JSON', 'export-data', '', 'primary')}${button('Compartilhar', 'share-backup')}</div></div><div class="panel"><h2>Restaurar backup</h2><input type="file" id="restoreFile" accept="application/json,.json"><div class="actions">${button('Importar arquivo', 'import-data')}</div></div><div class="panel"><h2>Lixeira • ${trash.length} registro(s)</h2>${
     trash.length
       ? trash
           .slice()
@@ -1817,6 +2039,56 @@ function handleAction(e) {
         deleteTrash(id);
       }
       break;
+    case 'cloud-connect': {
+      const urlEl = $('cloudUrl'),
+        keyEl = $('cloudKey');
+      const url = urlEl ? urlEl.value.trim() : '';
+      const key = keyEl ? keyEl.value.trim() : '';
+      if (!key) {
+        alert('Informe a anon key do Supabase.');
+        return;
+      }
+      localStorage.setItem(
+        'peptide-supabase-url',
+        url || 'https://bcmshjfolhetogfkebnj.supabase.co',
+      );
+      localStorage.setItem('peptide-supabase-key', key);
+      initSupabase();
+      render();
+      break;
+    }
+    case 'cloud-login': {
+      const emailEl = $('cloudEmail'),
+        passEl = $('cloudPassword');
+      const email = emailEl ? emailEl.value.trim() : '',
+        pass = passEl ? passEl.value : '';
+      handleSupabaseAuth('signin', email, pass);
+      break;
+    }
+    case 'cloud-signup': {
+      const emailEl = $('cloudEmail'),
+        passEl = $('cloudPassword');
+      const email = emailEl ? emailEl.value.trim() : '',
+        pass = passEl ? passEl.value : '';
+      handleSupabaseAuth('signup', email, pass);
+      break;
+    }
+    case 'cloud-sync':
+      pullFromCloud().then(pushToCloud);
+      break;
+    case 'cloud-logout':
+      handleSupabaseSignOut();
+      break;
+    case 'cloud-disconnect':
+      if (
+        confirm('Deseja desconectar o Supabase deste aparelho? Os dados locais serão mantidos.')
+      ) {
+        handleSupabaseSignOut();
+        localStorage.removeItem('peptide-supabase-key');
+        supabaseClient = null;
+        render();
+      }
+      break;
   }
 }
 function setupVisualEffects() {
@@ -1853,6 +2125,7 @@ if (typeof document !== 'undefined' && typeof document.addEventListener === 'fun
 
 render();
 syncNav();
+initSupabase();
 // A instalação PWA só funciona em HTTPS ou localhost. O arquivo HTML isolado permanece utilizável.
 if (
   'serviceWorker' in navigator &&
