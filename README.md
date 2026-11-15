@@ -7,30 +7,31 @@ no navegador e não envia dados para servidor.
 compostos e não substitui orientação profissional.
 
 - Fontes: <https://github.com/RCX96/Pepitide-Manager>
-- Versão atual: 2.4
+- Versão atual: 2.6
 
 ## O que faz
 
-- **Aplicações:** data, horário, local, ciclo vinculado, compostos por seringa e observações.
+- **Aplicações:** data, horário, ciclo vinculado, compostos por seringa e observações.
 - **Ciclos:** início, fim, pausas e retomadas; o tempo ativo desconta os dias em pausa.
-- **Peso:** pesagens, meta, gráfico e variação por período.
 - **Calendário:** consulta das aplicações registradas por dia, sem cálculo de doses.
 - **Relatórios:** filtros por período e ciclo, exportação CSV e impressão/PDF.
-- **Dados:** backup JSON com verificação SHA-256, restauração validada, lixeira e diagnóstico de
+- **Ajustes:** backup JSON com verificação SHA-256, restauração validada, lixeira e diagnóstico de
   integridade.
-- **Lembretes:** notificações recorrentes de composto (uma vez, todos os dias ou toda semana),
-  exibidas no inicial e no calendário.
+- **Sincronização na nuvem:** conta por e-mail e senha no Supabase; cada registro sobe sozinho e
+  desce em um aparelho novo ao entrar na mesma conta.
 - **Catálogo de compostos:** sugestões de nomes salvos para agilizar novos registros.
 - **Proteção local:** código de bloqueio com hash (AES-256-GCM disponível no backup criptografado).
 
 ## Privacidade e armazenamento
 
 - Os registros ficam no `localStorage` deste navegador, na chave `peptide-manager-v1`.
-- Não há conta, sincronização automática nem backend.
-- Limpar os dados do navegador apaga os registros: exporte backups com frequência (o app lembra
-  após 14 dias).
+- Com a conta na nuvem ativa, uma cópia fica na tabela `user_data` do Supabase. O acesso é protegido
+  por RLS: cada conta lê e grava apenas a própria linha.
+- Sem conta, o app funciona só neste navegador.
+- Limpar os dados do navegador apaga os registros locais: exporte backups com frequência (o app
+  lembra após 14 dias).
 - O conteúdo local não é criptografado em repouso, mas é possível exportar um backup
-  **criptografado** (AES-256-GCM) com senha própria no painel de **Dados**.
+  **criptografado** (AES-256-GCM) com senha própria no painel de **Ajustes**.
 
 ## Estrutura
 

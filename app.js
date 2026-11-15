@@ -1,5 +1,8 @@
 const KEY = 'peptide-manager-v1';
 const BACKUP_META_KEY = 'peptide-manager-backup-meta-v2.2';
+// Chave publicável do Supabase: feita para ir no app. A proteção real é o RLS (cada conta lê só o que é dela).
+const SUPABASE_URL = 'https://bcmshjfolhetogfkebnj.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_Jo-vZQmILG2MDXT0LEDYjg_xZV2TWNb';
 const CYCLE_ID_RE = /^[a-f0-9-]{1,64}$/i;
 const blank = () => ({
   applications: [],
@@ -36,6 +39,7 @@ let tab = 'inicio',
   supabaseClient = null,
   supabaseUser = null,
   supabaseSyncStatus = '',
+  supabaseSyncError = '',
   supabaseLastSync =
     typeof localStorage !== 'undefined'
       ? localStorage.getItem('peptide-supabase-last-sync') || ''
@@ -1049,9 +1053,10 @@ function deleteTrash(id) {
 function getSupabaseConfig() {
   const url =
     (typeof localStorage !== 'undefined' && localStorage.getItem('peptide-supabase-url')) ||
-    'https://bcmshjfolhetogfkebnj.supabase.co';
+    SUPABASE_URL;
   const key =
-    (typeof localStorage !== 'undefined' && localStorage.getItem('peptide-supabase-key')) || '';
+    (typeof localStorage !== 'undefined' && localStorage.getItem('peptide-supabase-key')) ||
+    SUPABASE_KEY;
   return { url, key };
 }
 
@@ -1118,6 +1123,7 @@ async function pushToCloud() {
   }
   try {
     supabaseSyncStatus = 'Sincronizando...';
+    supabaseSyncError = '';
     if (tab === 'configuracoes') {
       render();
     }
@@ -1131,16 +1137,14 @@ async function pushToCloud() {
       .upsert(payload, { onConflict: 'user_id' });
     if (error) {
       supabaseSyncStatus = 'Erro ao sincronizar';
+      supabaseSyncError =
+        error.code === '42P01' || error.code === 'PGRST205'
+          ? 'A tabela user_data ainda não existe neste projeto Supabase.'
+          : error.message;
       console.warn('Erro ao salvar no Supabase:', error.message);
     } else {
       supabaseSyncStatus = 'Sincronizado';
-      supabaseLastSync = new Date().toLocaleTimeString('pt-BR', {
-        hour: '2-digit',
-        minute: '2-digit',
-      });
-      if (typeof localStorage !== 'undefined') {
-        localStorage.setItem('peptide-supabase-last-sync', supabaseLastSync);
-      }
+      markCloudSynced();
     }
   } catch {
     supabaseSyncStatus = 'Offline';
@@ -1150,12 +1154,27 @@ async function pushToCloud() {
   }
 }
 
+function markCloudSynced() {
+  supabaseLastSync = new Date().toLocaleTimeString('pt-BR', {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+  if (typeof localStorage !== 'undefined') {
+    localStorage.setItem('peptide-supabase-last-sync', supabaseLastSync);
+  }
+}
+
+function localRecordCount() {
+  return (db.applications?.length || 0) + (db.cycles?.length || 0);
+}
+
 async function pullFromCloud() {
   if (!supabaseClient || !supabaseUser) {
     return;
   }
   try {
     supabaseSyncStatus = 'Carregando dados...';
+    supabaseSyncError = '';
     if (tab === 'configuracoes') {
       render();
     }
@@ -1166,35 +1185,32 @@ async function pullFromCloud() {
       .maybeSingle();
 
     if (error) {
-      console.warn('Erro ao ler do Supabase:', error.message);
       supabaseSyncStatus = 'Erro ao carregar';
+      supabaseSyncError =
+        error.code === '42P01' || error.code === 'PGRST205'
+          ? 'A tabela user_data ainda não existe neste projeto Supabase.'
+          : error.message;
+      console.warn('Erro ao ler do Supabase:', error.message);
       return;
     }
 
-    if (data?.data && typeof data.data === 'object') {
-      const cloudDb = data.data;
-      if (Array.isArray(cloudDb.applications) && Array.isArray(cloudDb.cycles)) {
-        const localCount = db.applications.length + db.cycles.length;
-        const cloudCount = cloudDb.applications.length + cloudDb.cycles.length;
-        if (localCount === 0 || cloudCount > localCount) {
-          db = { ...db, ...cloudDb };
-          if (typeof localStorage !== 'undefined') {
-            localStorage.setItem(KEY, JSON.stringify(db));
-          }
-          render();
+    const cloudDb = data?.data;
+    if (cloudDb && typeof cloudDb === 'object' && Array.isArray(cloudDb.applications)) {
+      // Baixa da nuvem somente quando este aparelho ainda não tem registros.
+      // Assim, um registro excluído aqui não volta na próxima sincronização.
+      if (localRecordCount() === 0) {
+        db = { ...db, ...cloudDb };
+        if (typeof localStorage !== 'undefined') {
+          localStorage.setItem(KEY, JSON.stringify(db));
         }
+        render();
       }
-    } else {
+    } else if (localRecordCount() > 0) {
       await pushToCloud();
+      return;
     }
     supabaseSyncStatus = 'Sincronizado';
-    supabaseLastSync = new Date().toLocaleTimeString('pt-BR', {
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-    if (typeof localStorage !== 'undefined') {
-      localStorage.setItem('peptide-supabase-last-sync', supabaseLastSync);
-    }
+    markCloudSynced();
   } catch {
     supabaseSyncStatus = 'Offline';
   }
@@ -1208,34 +1224,58 @@ async function handleSupabaseAuth(mode, email, password) {
     initSupabase();
   }
   if (!supabaseClient) {
-    alert('Conecte o Supabase primeiro informando a chave pública.');
+    alert('Não foi possível iniciar a conexão com a nuvem. Verifique a internet e tente de novo.');
     return;
   }
   if (!email || !password) {
     alert('Preencha e-mail e senha.');
     return;
   }
+  if (password.length < 6) {
+    alert('A senha precisa ter pelo menos 6 caracteres.');
+    return;
+  }
   try {
+    supabaseSyncStatus = mode === 'signup' ? 'Criando conta...' : 'Entrando...';
+    supabaseSyncError = '';
+    render();
     if (mode === 'signup') {
       const { data, error } = await supabaseClient.auth.signUp({ email, password });
       if (error) {
-        alert('Erro ao cadastrar: ' + error.message);
+        supabaseSyncStatus = '';
+        supabaseSyncError = error.message;
+        alert('Erro ao criar conta: ' + error.message);
+        render();
+        return;
+      }
+      if (data?.session?.user) {
+        supabaseUser = data.session.user;
+        supabaseSyncStatus = 'Sincronizado';
+        await pullFromCloud();
+        await pushToCloud();
       } else {
         alert(
-          'Conta cadastrada com sucesso! ' +
-            (data?.session
-              ? 'Você já está conectado.'
-              : 'Verifique seu e-mail para confirmar a conta se necessário.'),
+          'Conta criada. Confirme o e-mail enviado pelo Supabase e depois toque em "Já tenho conta".',
         );
       }
     } else if (mode === 'signin') {
-      const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+      const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
       if (error) {
+        supabaseSyncStatus = '';
+        supabaseSyncError = error.message;
         alert('Falha ao entrar: ' + error.message);
+        render();
+        return;
       }
+      supabaseUser = data?.user || supabaseUser;
+      await pullFromCloud();
     }
+    render();
   } catch (e) {
+    supabaseSyncStatus = '';
+    supabaseSyncError = e.message;
     alert('Erro de conexão: ' + e.message);
+    render();
   }
 }
 
@@ -1244,19 +1284,24 @@ async function handleSupabaseSignOut() {
     await supabaseClient.auth.signOut();
     supabaseUser = null;
     supabaseSyncStatus = '';
+    supabaseSyncError = '';
     render();
   }
 }
 
 function cloudSyncPanel() {
-  const { url, key } = getSupabaseConfig();
-  if (!key) {
-    return `<div class="panel"><h2>Sincronização na Nuvem</h2><p class="muted">Conecte sua conta Supabase para salvar seus dados online gratuitamente.</p><label for="cloudUrl">URL do Supabase</label><input type="url" id="cloudUrl" value="${esc(url || 'https://bcmshjfolhetogfkebnj.supabase.co')}" placeholder="https://....supabase.co"><label for="cloudKey">Chave pública (anon key)</label><input type="password" id="cloudKey" placeholder="Cole sua anon key do Supabase"><div class="row actions">${button('Conectar Supabase', 'cloud-connect', '', 'primary')}</div></div>`;
-  }
   if (!supabaseUser) {
-    return `<div class="panel"><h2>Sincronização na Nuvem</h2><p class="muted">Projeto conectado • Entre ou crie sua conta pessoal</p><label for="cloudEmail">E-mail</label><input type="email" id="cloudEmail" placeholder="seu@email.com"><label for="cloudPassword">Senha</label><input type="password" id="cloudPassword" placeholder="Sua senha"><div class="row actions">${button('Entrar', 'cloud-login', '', 'primary')}${button('Criar conta', 'cloud-signup')}${button('Desconectar', 'cloud-disconnect', '', 'danger')}</div></div>`;
+    return `<div class="panel"><h2>Sincronização na nuvem</h2><p class="muted">Crie sua conta uma vez. Depois disso, cada registro sobe sozinho para a nuvem e abre no celular e no computador.</p><label for="cloudEmail">E-mail</label><input type="email" id="cloudEmail" placeholder="seu@email.com" autocomplete="email"><label for="cloudPassword">Senha (mínimo 6 caracteres)</label><input type="password" id="cloudPassword" placeholder="Sua senha" autocomplete="current-password"><div class="row actions">${button('Criar conta', 'cloud-signup', '', 'primary')}${button('Já tenho conta', 'cloud-login')}</div><p class="muted">Primeiro acesso? Use <strong>Criar conta</strong>. Depois, use <strong>Já tenho conta</strong> com o mesmo e-mail e senha.</p>${
+      supabaseSyncError
+        ? `<p class="muted"><strong>Último erro:</strong> ${esc(supabaseSyncError)}</p>`
+        : ''
+    }</div>`;
   }
-  return `<div class="panel"><h2>Sincronização na Nuvem</h2><p><strong>Conta:</strong> ${esc(supabaseUser.email)}</p><p class="muted">Status: <span class="pill">${esc(supabaseSyncStatus || 'Sincronizado')}</span> ${supabaseLastSync ? '• ' + esc(supabaseLastSync) : ''}</p><div class="row actions">${button('Sincronizar agora', 'cloud-sync', '', 'primary')}${button('Sair da conta', 'cloud-logout')}${button('Desconectar', 'cloud-disconnect', '', 'danger')}</div></div>`;
+  return `<div class="panel"><h2>Sincronização na nuvem</h2><p><strong>Conta:</strong> ${esc(supabaseUser.email)}</p><p class="muted">Status: <span class="pill">${esc(supabaseSyncStatus || 'Sincronizado')}</span> ${supabaseLastSync ? '• ' + esc(supabaseLastSync) : ''}</p>${
+    supabaseSyncError
+      ? `<p class="muted"><strong>Último erro:</strong> ${esc(supabaseSyncError)}</p>`
+      : ''
+  }<div class="row actions">${button('Sincronizar agora', 'cloud-sync', '', 'primary')}${button('Sair da conta', 'cloud-logout')}</div></div>`;
 }
 
 function dataPage() {
@@ -1275,7 +1320,7 @@ function dataPage() {
           )
           .join('')
       : '<p class="empty">A lixeira está vazia.</p>'
-  }</div><div class="panel"><h2>Dados locais</h2><p class="muted">Os registros são salvos apenas neste navegador.</p><div class="row">${button('Verificar integridade', 'verify-local')}</div></div>`;
+  }</div><div class="panel"><h2>Dados no aparelho</h2><p class="muted">${supabaseUser ? 'Os registros ficam salvos neste navegador e também na sua conta na nuvem.' : 'Os registros ficam salvos neste navegador. Ative a conta na nuvem acima para ter cópia online.'}</p><div class="row">${button('Verificar integridade', 'verify-local')}</div></div>`;
 }
 function strictDate(s) {
   if (typeof s !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(s)) {
@@ -2039,24 +2084,6 @@ function handleAction(e) {
         deleteTrash(id);
       }
       break;
-    case 'cloud-connect': {
-      const urlEl = $('cloudUrl'),
-        keyEl = $('cloudKey');
-      const url = urlEl ? urlEl.value.trim() : '';
-      const key = keyEl ? keyEl.value.trim() : '';
-      if (!key) {
-        alert('Informe a anon key do Supabase.');
-        return;
-      }
-      localStorage.setItem(
-        'peptide-supabase-url',
-        url || 'https://bcmshjfolhetogfkebnj.supabase.co',
-      );
-      localStorage.setItem('peptide-supabase-key', key);
-      initSupabase();
-      render();
-      break;
-    }
     case 'cloud-login': {
       const emailEl = $('cloudEmail'),
         passEl = $('cloudPassword');
@@ -2078,16 +2105,6 @@ function handleAction(e) {
       break;
     case 'cloud-logout':
       handleSupabaseSignOut();
-      break;
-    case 'cloud-disconnect':
-      if (
-        confirm('Deseja desconectar o Supabase deste aparelho? Os dados locais serão mantidos.')
-      ) {
-        handleSupabaseSignOut();
-        localStorage.removeItem('peptide-supabase-key');
-        supabaseClient = null;
-        render();
-      }
       break;
   }
 }
