@@ -1086,7 +1086,7 @@ function initSupabase() {
           if (data?.session?.user) {
             supabaseUser = data.session.user;
             supabaseSyncStatus = 'Conectado';
-            pullFromCloud({ replaceLocal: true });
+            syncWithCloud();
           }
         })
         .catch(() => {});
@@ -1107,14 +1107,70 @@ function initSupabase() {
   }
 }
 
+const PENDING_KEY = 'peptide-supabase-pending';
+
+function markPendingPush() {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(PENDING_KEY, '1');
+    }
+  } catch {
+    /* armazenamento indisponível */
+  }
+}
+
+function clearPendingPush() {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.removeItem(PENDING_KEY);
+    }
+  } catch {
+    /* armazenamento indisponível */
+  }
+}
+
+function hasPendingPush() {
+  try {
+    return typeof localStorage !== 'undefined' && localStorage.getItem(PENDING_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
 function scheduleCloudSync() {
   if (!supabaseClient || !supabaseUser) {
     return;
   }
+  markPendingPush();
   if (syncTimer) {
     clearTimeout(syncTimer);
   }
   syncTimer = setTimeout(pushToCloud, 800);
+}
+
+// Ao abrir ou voltar para o app: envia a alteração local ainda não enviada
+// (para não perder nada) e depois se alinha com a nuvem.
+async function syncWithCloud() {
+  if (!supabaseClient || !supabaseUser) {
+    return;
+  }
+  if (hasPendingPush()) {
+    await pushToCloud();
+  }
+  await pullFromCloud({ replaceLocal: true });
+}
+
+function setupCloudResumeSync() {
+  if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        syncWithCloud();
+      }
+    });
+  }
+  if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+    window.addEventListener('online', () => syncWithCloud());
+  }
 }
 
 async function pushToCloud() {
@@ -1145,6 +1201,7 @@ async function pushToCloud() {
     } else {
       supabaseSyncStatus = 'Sincronizado';
       markCloudSynced();
+      clearPendingPush();
     }
   } catch {
     supabaseSyncStatus = 'Offline';
@@ -1196,13 +1253,14 @@ async function pullFromCloud({ replaceLocal = false } = {}) {
 
     const cloudDb = data?.data;
     if (cloudDb && typeof cloudDb === 'object' && Array.isArray(cloudDb.applications)) {
-      // Baixa da nuvem somente quando este aparelho ainda não tem registros.
-      // Assim, um registro excluído aqui não volta na próxima sincronização.
+      // Baixa da nuvem quando este aparelho ainda não tem registros ou quando o
+      // chamador pede a substituição (entrar na conta, voltar ao app, sincronizar agora).
       if (replaceLocal || localRecordCount() === 0) {
         db = { ...db, ...cloudDb };
         if (typeof localStorage !== 'undefined') {
           localStorage.setItem(KEY, JSON.stringify(db));
         }
+        clearPendingPush();
         render();
       }
     } else if (localRecordCount() > 0) {
@@ -2101,7 +2159,7 @@ function handleAction(e) {
       break;
     }
     case 'cloud-sync':
-      pullFromCloud({ replaceLocal: true });
+      syncWithCloud();
       break;
     case 'cloud-logout':
       handleSupabaseSignOut();
@@ -2142,6 +2200,7 @@ if (typeof document !== 'undefined' && typeof document.addEventListener === 'fun
 
 render();
 syncNav();
+setupCloudResumeSync();
 initSupabase();
 // A instalação PWA só funciona em HTTPS ou localhost. O arquivo HTML isolado permanece utilizável.
 if (

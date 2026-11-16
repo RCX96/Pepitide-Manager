@@ -92,6 +92,8 @@ Ao entrar, o app baixa os dados da nuvem e substitui os dados locais desse apare
 ### Entenda quando a sincronização acontece
 
 - Cada salvamento local agenda o envio para a nuvem quando você está conectado.
+- Ao abrir o app ou voltar para ele, e também quando a conexão volta, o app se alinha com a nuvem:
+  envia se houver alteração local ainda não enviada; se não houver, baixa a cópia da nuvem.
 - O status **Sincronizado** confirma o último envio ou carregamento concluído.
 - Sem internet, o app continua salvando no navegador. Quando a conexão voltar, toque em
   **Sincronizar agora**.

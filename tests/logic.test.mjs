@@ -479,3 +479,55 @@ test('relatórios não exibem recursos de peso', () => {
   assert.equal(rendered.includes('CSV peso'), false);
 });
 
+
+// A sincronização usa uma marca local para saber se há alteração ainda não enviada.
+test('salvar marca alteração pendente e o envio concluído limpa a marca', () => {
+  const testApp = loadApp();
+  vm.runInContext('supabaseClient = {}; supabaseUser = { id: "u1" };', testApp);
+  assert.equal(testApp.hasPendingPush(), false);
+  vm.runInContext('scheduleCloudSync();', testApp);
+  assert.equal(testApp.hasPendingPush(), true);
+  vm.runInContext('clearPendingPush();', testApp);
+  assert.equal(testApp.hasPendingPush(), false);
+});
+
+test('syncWithCloud envia a alteração pendente e depois se alinha com a nuvem', async () => {
+  const testApp = loadApp();
+  testApp.calls = [];
+  vm.runInContext(
+    `supabaseClient = {}; supabaseUser = { id: 'u1' };
+     pushToCloud = async () => { calls.push('push'); };
+     pullFromCloud = async (opts) => { calls.push('pull:' + JSON.stringify(opts || {})); };
+     markPendingPush();`,
+    testApp,
+  );
+  await testApp.syncWithCloud();
+  assert.deepEqual(Array.from(testApp.calls), ['push', 'pull:{"replaceLocal":true}']);
+});
+
+test('syncWithCloud baixa a nuvem quando não há nada pendente', async () => {
+  const testApp = loadApp();
+  testApp.calls = [];
+  vm.runInContext(
+    `supabaseClient = {}; supabaseUser = { id: 'u1' };
+     pushToCloud = async () => { calls.push('push'); };
+     pullFromCloud = async (opts) => { calls.push('pull:' + JSON.stringify(opts || {})); };
+     clearPendingPush();`,
+    testApp,
+  );
+  await testApp.syncWithCloud();
+  assert.deepEqual(Array.from(testApp.calls), ['pull:{"replaceLocal":true}']);
+});
+
+test('syncWithCloud não faz nada sem conta conectada', async () => {
+  const testApp = loadApp();
+  testApp.calls = [];
+  vm.runInContext(
+    `supabaseClient = null; supabaseUser = null;
+     pushToCloud = async () => { calls.push('push'); };
+     pullFromCloud = async () => { calls.push('pull'); };`,
+    testApp,
+  );
+  await testApp.syncWithCloud();
+  assert.deepEqual(Array.from(testApp.calls), []);
+});
