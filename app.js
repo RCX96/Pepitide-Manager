@@ -1086,14 +1086,14 @@ function initSupabase() {
           if (data?.session?.user) {
             supabaseUser = data.session.user;
             supabaseSyncStatus = 'Conectado';
-            pullFromCloud();
+            pullFromCloud({ replaceLocal: true });
           }
         })
         .catch(() => {});
       supabaseClient.auth.onAuthStateChange((event, session) => {
         supabaseUser = session?.user || null;
         if (session?.user && event === 'SIGNED_IN') {
-          pullFromCloud();
+          pullFromCloud({ replaceLocal: true });
         }
         if (tab === 'configuracoes') {
           render();
@@ -1168,7 +1168,7 @@ function localRecordCount() {
   return (db.applications?.length || 0) + (db.cycles?.length || 0);
 }
 
-async function pullFromCloud() {
+async function pullFromCloud({ replaceLocal = false } = {}) {
   if (!supabaseClient || !supabaseUser) {
     return;
   }
@@ -1198,7 +1198,7 @@ async function pullFromCloud() {
     if (cloudDb && typeof cloudDb === 'object' && Array.isArray(cloudDb.applications)) {
       // Baixa da nuvem somente quando este aparelho ainda não tem registros.
       // Assim, um registro excluído aqui não volta na próxima sincronização.
-      if (localRecordCount() === 0) {
+      if (replaceLocal || localRecordCount() === 0) {
         db = { ...db, ...cloudDb };
         if (typeof localStorage !== 'undefined') {
           localStorage.setItem(KEY, JSON.stringify(db));
@@ -1268,7 +1268,7 @@ async function handleSupabaseAuth(mode, email, password) {
         return;
       }
       supabaseUser = data?.user || supabaseUser;
-      await pullFromCloud();
+      await pullFromCloud({ replaceLocal: true });
     }
     render();
   } catch (e) {
@@ -2101,7 +2101,7 @@ function handleAction(e) {
       break;
     }
     case 'cloud-sync':
-      pullFromCloud().then(pushToCloud);
+      pullFromCloud({ replaceLocal: true });
       break;
     case 'cloud-logout':
       handleSupabaseSignOut();
