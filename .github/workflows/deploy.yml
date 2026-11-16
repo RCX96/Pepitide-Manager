@@ -57,18 +57,18 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-      - name: Conferir versão publicada
+      - name: Conferir conteúdo publicado
         run: |
           URL="https://rcx96.github.io/Pepitide-Manager"
-          EXPECTED=$(grep -o 'versão [0-9][0-9.]*' index.html | head -1 | cut -d' ' -f2)
+          EXPECTED=$(sha256sum app.js | cut -d' ' -f1)
           CACHE=$(grep -o 'peptide-manager-shell-v[0-9.]*' service-worker.js | head -1 | sed 's/.*-v//')
-          echo "versão no repo: $EXPECTED / cache do SW: $CACHE"
+          echo "sha256 do app.js no repositório: $EXPECTED / cache do service worker: $CACHE"
           for i in $(seq 1 10); do
-            body=$(curl -fsS "$URL/index.html?cb=$RANDOM" || true)
+            live=$(curl -fsS "$URL/app.js?cb=$RANDOM" | sha256sum | cut -d' ' -f1 || true)
             sw=$(curl -fsS "$URL/service-worker.js?cb=$RANDOM" || true)
-            if echo "$body" | grep -q "versão $EXPECTED" && echo "$sw" | grep -q "shell-v$CACHE"; then
+            if [ "$live" = "$EXPECTED" ] && echo "$sw" | grep -q "shell-v$CACHE"; then
               echo "publicado ok"; exit 0
             fi
             sleep 15
           done
-          echo "conteúdo publicado não confere com a versão $EXPECTED"; exit 1
+          echo "app.js publicado não confere com o commit; cache esperado: $CACHE"; exit 1
