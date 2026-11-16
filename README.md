@@ -1,7 +1,8 @@
 # Peptide Manager
 
-PWA de registro pessoal de aplicações, ciclos e evolução de peso. Funciona offline, guarda tudo
-no navegador e não envia dados para servidor.
+PWA de registro pessoal de aplicações, ciclos e evolução de peso. Funciona offline e guarda os
+registros no navegador. Quando você entra em uma conta, o app também sincroniza uma cópia com o
+Supabase.
 
 **Aviso:** o aplicativo é um diário. Ele não avalia segurança, compatibilidade ou doses de
 compostos e não substitui orientação profissional.
@@ -28,10 +29,82 @@ compostos e não substitui orientação profissional.
 - Com a conta na nuvem ativa, uma cópia fica na tabela `user_data` do Supabase. O acesso é protegido
   por RLS: cada conta lê e grava apenas a própria linha.
 - Sem conta, o app funciona só neste navegador.
-- Limpar os dados do navegador apaga os registros locais: exporte backups com frequência (o app
-  lembra após 14 dias).
+- Limpar os dados do navegador apaga os registros locais. Se a conta na nuvem já estiver conectada,
+  entre novamente para baixar a cópia da nuvem.
 - O conteúdo local não é criptografado em repouso, mas é possível exportar um backup
   **criptografado** (AES-256-GCM) com senha própria no painel de **Ajustes**.
+
+## Sincronizar entre o desktop e o celular
+
+O app usa a mesma conta Supabase nos dois aparelhos. A URL e a chave pública do projeto já estão
+configuradas em `app.js`. A chave pública pode ficar no aplicativo. A proteção dos dados depende do
+RLS da tabela `user_data`.
+
+### Configure a tabela uma vez
+
+Para o projeto já configurado do app, pule esta seção. Se você estiver configurando outro projeto
+Supabase, abra o **SQL Editor** e execute este script:
+
+```sql
+create table if not exists public.user_data (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  data jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default timezone('utc', now())
+);
+
+alter table public.user_data enable row level security;
+
+drop policy if exists "user_data_owner" on public.user_data;
+
+create policy "user_data_owner"
+on public.user_data
+for all
+to authenticated
+using (auth.uid() = user_id)
+with check (auth.uid() = user_id);
+```
+
+O script cria uma linha por conta. O campo `data` guarda o estado do app em JSON.
+
+### Conecte o primeiro aparelho
+
+1. Abra o app no desktop ou no celular.
+2. Abra **Ajustes**.
+3. Em **Sincronização na nuvem**, informe um e-mail e uma senha com pelo menos seis caracteres.
+4. Toque em **Criar conta**.
+5. Se a confirmação de e-mail estiver ativa no Supabase, confirme o e-mail e toque em **Já tenho conta**.
+6. Aguarde o status **Sincronizado**.
+
+Se esse aparelho já tiver registros e a conta ainda não tiver dados, o app envia os registros locais
+para a nuvem depois do cadastro.
+
+### Conecte o segundo aparelho
+
+1. Abra o mesmo app no segundo aparelho.
+2. Abra **Ajustes**.
+3. Informe o mesmo e-mail e a mesma senha.
+4. Toque em **Já tenho conta**.
+5. Aguarde o status **Sincronizado**.
+
+Ao entrar, o app baixa os dados da nuvem e substitui os dados locais desse aparelho. O botão
+**Sincronizar agora** faz a mesma operação.
+
+### Entenda quando a sincronização acontece
+
+- Cada salvamento local agenda o envio para a nuvem quando você está conectado.
+- O status **Sincronizado** confirma o último envio ou carregamento concluído.
+- Sem internet, o app continua salvando no navegador. Quando a conexão voltar, toque em
+  **Sincronizar agora**.
+- A sincronização não mescla alterações feitas em dois aparelhos. Se dois aparelhos editarem sem
+  sincronizar, o envio de um deles pode substituir o estado salvo pelo outro.
+- O backup JSON continua separado. A nuvem guarda o estado atual e não mantém versões antigas.
+
+### Resolva os erros mais comuns
+
+- **A tabela `user_data` ainda não existe:** execute o script de configuração no SQL Editor.
+- **Erro ao carregar** ou **Erro ao sincronizar:** confira a conexão, a URL do projeto e a política RLS.
+- **Falha ao entrar:** confira o e-mail e a senha. Se a confirmação de e-mail estiver ativa, confirme
+  a mensagem recebida antes de entrar.
 
 ## Estrutura
 
@@ -72,8 +145,9 @@ Abrir `index.html` direto no disco também funciona, mas sem modo offline.
 
 ## Deploy
 
-O aplicativo é estático. O branch `main` é a fonte da verdade; o GitHub Pages (ou qualquer
-servidor estático) expõe a PWA sem precisar de backend ou de uma provedora de deploy separada.
+O aplicativo é um front-end estático. O branch `main` é a fonte da verdade; o GitHub Pages ou outro
+servidor estático expõe a PWA sem um servidor próprio. A sincronização usa o projeto Supabase
+configurado em `app.js`.
 
 ## Versionamento
 
@@ -84,6 +158,6 @@ servidor estático) expõe a PWA sem precisar de backend ou de uma provedora de 
 
 ## Limitações conhecidas
 
-- Sem sincronização entre aparelhos; a transferência é manual por backup JSON.
+- A sincronização não mescla alterações simultâneas entre aparelhos.
 - O conteúdo local não é criptografado, salvo no backup criptografado com senha própria.
 - Sem testes de interface automatizados (apenas testes de lógica pura).
