@@ -395,8 +395,18 @@ footer .footer-backup button {
 label {
   display: block;
   margin-bottom: 6px;
+  color: #c7d4e8;
   font-size: 12px;
   font-weight: 700;
+}
+::placeholder {
+  color: #7f93b0;
+  opacity: 1;
+}
+input[type='date']::-webkit-calendar-picker-indicator,
+input[type='time']::-webkit-calendar-picker-indicator {
+  filter: invert(0.85);
+  cursor: pointer;
 }
 input,
 select,
@@ -404,9 +414,9 @@ textarea {
   width: 100%;
   padding: 11px 12px;
   color: var(--text);
-  border: 1px solid var(--line);
-  border-radius: 11px;
-  background: rgba(6, 17, 31, 0.62);
+  border: 1px solid rgba(148, 163, 184, 0.34);
+  border-radius: var(--radius-sm);
+  background: rgba(22, 42, 70, 0.85);
   transition:
     border-color 0.2s ease,
     box-shadow 0.2s ease,
@@ -416,8 +426,8 @@ input:focus,
 select:focus,
 textarea:focus {
   border-color: rgba(98, 230, 213, 0.72);
-  background: rgba(8, 22, 39, 0.9);
-  box-shadow: 0 0 0 4px rgba(98, 230, 213, 0.1);
+  background: rgba(26, 50, 82, 0.95);
+  box-shadow: 0 0 0 4px rgba(98, 230, 213, 0.16);
   outline: none;
 }
 textarea {
@@ -884,4 +894,22 @@ dialog .warning {
   body * {
     print-color-adjust: exact;
   }
+}
+
+.update-banner {
+  position: fixed;
+  top: 14px;
+  left: 50%;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px 10px 16px;
+  color: var(--text);
+  font-size: 13px;
+  border: 1px solid rgba(98, 230, 213, 0.45);
+  border-radius: var(--radius-md);
+  background: rgba(10, 21, 37, 0.95);
+  box-shadow: var(--shadow);
+  transform: translateX(-50%);
 }

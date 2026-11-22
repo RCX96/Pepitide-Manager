@@ -1,6 +1,6 @@
 # Peptide Manager
 
-PWA de registro pessoal de aplicações, ciclos e evolução de peso. Funciona offline e guarda os
+PWA de registro pessoal de aplicações e ciclos. Funciona offline e guarda os
 registros no navegador. Quando você entra em uma conta, o app também sincroniza uma cópia com o
 Supabase.
 
@@ -8,13 +8,14 @@ Supabase.
 compostos e não substitui orientação profissional.
 
 - Fontes: <https://github.com/RCX96/Pepitide-Manager>
-- Versão atual: 2.6
+- App: <https://rcx96.github.io/Pepitide-Manager/>
+- Versão atual: 2.26
 
 ## O que faz
 
 - **Aplicações:** data, horário, ciclo vinculado, compostos por seringa e observações.
 - **Ciclos:** início, fim, pausas e retomadas; o tempo ativo desconta os dias em pausa.
-- **Calendário:** consulta das aplicações registradas por dia, sem cálculo de doses.
+- **Início:** calendário das aplicações por dia e tempo dos ciclos ativos.
 - **Relatórios:** filtros por período e ciclo, exportação CSV e impressão/PDF.
 - **Ajustes:** backup JSON com verificação SHA-256, restauração validada, lixeira e diagnóstico de
   integridade.
@@ -118,6 +119,7 @@ manifest.webmanifest  metadados da PWA
 service-worker.js     cache offline (network-first na navegação)
 icon-192.png          ícone
 icon-512.png          ícone
+icon-maskable-512.png ícone com margem segura (Android)
 tests/logic.test.mjs  testes das funções puras
 ```
 
@@ -153,10 +155,11 @@ configurado em `app.js`.
 
 ## Versionamento
 
-- `index.html` exibe a versão no cabeçalho.
+- `index.html` exibe a versão no rodapé e carrega `app.js`/`styles.css` com `?v=<versão>`.
 - Cada versão publicada recebe uma tag e uma release no GitHub (`v2.4`, por exemplo).
-- O cache do service worker usa o mesmo número (`peptide-manager-shell-v2.4`); ao publicar,
-  atualize a constante `CACHE` para invalidar o cache antigo.
+- O cache do service worker usa o mesmo número (`peptide-manager-shell-v2.26`); ao publicar,
+  atualize `CACHE_VERSION` em `service-worker.js` e o `?v=` em `index.html`. O app mostra
+  “Nova versão disponível” quando a versão nova assume o controle.
 
 ## Limitações conhecidas
 

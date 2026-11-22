@@ -277,12 +277,24 @@ test('validateBackup aceita lembretes e recusa repetição inválida', () => {
   assert.equal(
     app.validateBackup({
       ...base,
-      reminders: [{ id: 'r1', compoundName: 'Semaglutida', date: '2026-11-13', repeat: 'weekly', active: true }],
+      reminders: [
+        {
+          id: 'r1',
+          compoundName: 'Semaglutida',
+          date: '2026-11-13',
+          repeat: 'weekly',
+          active: true,
+        },
+      ],
     }),
     true,
   );
   assert.throws(
-    () => app.validateBackup({ ...base, reminders: [{ id: 'r1', compoundName: 'A', date: '2026-11-13', repeat: 'monthly' }] }),
+    () =>
+      app.validateBackup({
+        ...base,
+        reminders: [{ id: 'r1', compoundName: 'A', date: '2026-11-13', repeat: 'monthly' }],
+      }),
     /Lembrete inválido/,
   );
 });
@@ -314,6 +326,27 @@ test('index.html não contém handlers onclick inline', () => {
 
 test('menu não exibe a seção Dados', () => {
   assert.equal(/data-id="dados"/i.test(html), false);
+});
+
+test('menu é renderizado em MAIÚSCULAS e sem ícones', () => {
+  const rendered = loadApp().navHTML();
+  for (const label of ['INÍCIO', 'APLICAÇÕES', 'CICLOS', 'RELATÓRIOS', 'AJUSTES']) {
+    assert.equal(rendered.includes(`>${label}<`), true, label);
+  }
+  assert.equal(/[⌂♢◷▤⚙]/.test(rendered), false);
+});
+
+test('manifest tem ícone maskable próprio e atalhos válidos', () => {
+  const manifest = JSON.parse(
+    readFileSync(fileURLToPath(new URL('../manifest.webmanifest', import.meta.url)), 'utf8'),
+  );
+  assert.equal(
+    manifest.icons.some((i) => i.purpose === 'maskable'),
+    true,
+  );
+  for (const s of manifest.shortcuts) {
+    assert.match(s.url, /^\.\/\?tab=(inicio|aplicacoes|ciclos|relatorios|configuracoes)$/);
+  }
 });
 
 test('menu não exibe uma página separada de calendário', () => {
@@ -405,7 +438,10 @@ test('handleAction gerencia eventos via delegação de data-action e data-id', (
 
 test('uniqueCompoundNames remove duplicados e trata maiúsculas/minúsculas como iguais', () => {
   const names = ['Semaglutida', ' semaglutida ', 'Semaglutida', 'Liraglutida', 'liraglutida'];
-  assert.deepStrictEqual(Array.from(app.uniqueCompoundNames(names)), ['Semaglutida', 'Liraglutida']);
+  assert.deepStrictEqual(Array.from(app.uniqueCompoundNames(names)), [
+    'Semaglutida',
+    'Liraglutida',
+  ]);
 });
 
 test('uniqueCompoundNames ignora espaços extras e mantém a primeira ocorrência', () => {
@@ -446,9 +482,24 @@ test('lastCompoundEntry retorna a última entrada de um composto', () => {
 
 test('homeCalendar mostra os compostos de cada dia e gera acesso rápido por data', () => {
   app.db.applications = [
-    { date: '2026-11-01', time: '08:00', site: 'Abdômen', compounds: [{ name: 'Semaglutida', dose: 1, unit: 'mg' }] },
-    { date: '2026-11-01', time: '09:00', site: 'Coxa', compounds: [{ name: 'Liraglutida', dose: 0.5, unit: 'mg' }] },
-    { date: '2026-11-02', time: '08:30', site: 'Braço', compounds: [{ name: 'Semaglutida', dose: 1, unit: 'mg' }] },
+    {
+      date: '2026-11-01',
+      time: '08:00',
+      site: 'Abdômen',
+      compounds: [{ name: 'Semaglutida', dose: 1, unit: 'mg' }],
+    },
+    {
+      date: '2026-11-01',
+      time: '09:00',
+      site: 'Coxa',
+      compounds: [{ name: 'Liraglutida', dose: 0.5, unit: 'mg' }],
+    },
+    {
+      date: '2026-11-02',
+      time: '08:30',
+      site: 'Braço',
+      compounds: [{ name: 'Semaglutida', dose: 1, unit: 'mg' }],
+    },
   ];
   const html = app.homeCalendar();
   assert.match(html, /data-action="quick-register-date"/);
@@ -478,7 +529,6 @@ test('relatórios não exibem recursos de peso', () => {
   assert.equal(rendered.includes('Evolução de peso'), false);
   assert.equal(rendered.includes('CSV peso'), false);
 });
-
 
 // A sincronização usa uma marca local para saber se há alteração ainda não enviada.
 test('salvar marca alteração pendente e o envio concluído limpa a marca', () => {

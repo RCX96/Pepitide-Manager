@@ -1,4 +1,4 @@
-const CACHE_VERSION = '2.25';
+const CACHE_VERSION = '2.26';
 const CACHE_NAME = 'peptide-manager-shell-v' + CACHE_VERSION;
 const ASSETS = [
   './',
@@ -8,6 +8,7 @@ const ASSETS = [
   './styles.css',
   './icon-192.png',
   './icon-512.png',
+  './icon-maskable-512.png',
 ];
 
 self.addEventListener('install', (event) => {

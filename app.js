@@ -28,9 +28,9 @@ try {
     e.message;
   db = blank();
 }
+/* exported submitApp, submitCycle, setApplicationFilter, homeCalendar, lastCompoundEntry, reminderMatchesDate */
 let tab = 'inicio',
   editing = null,
-  draftFromCalendar = false,
   appDraft = null,
   compounds = [{ name: '', dose: '', unit: 'mg' }],
   applicationFilter = '',
@@ -164,32 +164,6 @@ function reminderMatchesDate(reminder, date) {
     return current >= start && Math.round((current - start) / 86400000) % 7 === 0;
   }
   return false;
-}
-function remindersOnDate(date) {
-  return (db.reminders || []).filter((r) => reminderMatchesDate(r, date));
-}
-function saveReminder(e) {
-  e.preventDefault();
-  const f = new FormData(e.target);
-  const item = {
-    id: uid(),
-    compoundName: String(f.get('compoundName') || '').trim(),
-    date: f.get('date'),
-    time: f.get('time') || '',
-    repeat: f.get('repeat') || 'none',
-    active: true,
-  };
-  if (!item.compoundName || !strictDate(item.date)) {
-    return alert('Informe composto e data válidos.');
-  }
-  db.reminders = Array.isArray(db.reminders) ? db.reminders : [];
-  db.reminders.push(item);
-  rememberCompoundNames([item.compoundName]);
-  save();
-}
-function deleteReminder(id) {
-  db.reminders = (db.reminders || []).filter((r) => r.id !== id);
-  save();
 }
 function quickRegister() {
   const latest = db.applications
@@ -393,7 +367,6 @@ function render() {
     inicio: home,
     aplicacoes: applications,
     ciclos: cycles,
-    peso: weight,
     relatorios: reports,
     configuracoes: dataPage,
   }[tab]();
@@ -641,9 +614,6 @@ function homeCalendar() {
     </div>`;
 }
 
-function backupReminder() {
-  return '';
-}
 function home() {
   const active = db.cycles.filter((x) => x.status === 'active' && CYCLE_ID_RE.test(x.id));
   const paused = db.cycles.filter((x) => x.status === 'paused' && CYCLE_ID_RE.test(x.id));
@@ -867,162 +837,6 @@ function changeCycleStatusWithoutSave(c, status) {
   c.status = status;
 }
 
-function chartSVG(rows) {
-  const data = rows
-    .filter((r) => Number.isFinite(Number(r.value)) && Number(r.value) > 0)
-    .map((r) => ({ date: r.date, value: Number(r.value) }))
-    .sort((a, b) => a.date.localeCompare(b.date));
-  if (!data.length) {
-    return '<div class="empty">Registre uma pesagem para visualizar o gráfico.</div>';
-  }
-  const W = 720,
-    H = 290,
-    L = 54,
-    R = 22,
-    T = 24,
-    B = 48,
-    pw = W - L - R,
-    ph = H - T - B;
-  const values = data.map((r) => r.value);
-  if (Number(db.goal) > 0) {
-    values.push(Number(db.goal));
-  }
-  let lo = Math.min(...values),
-    hi = Math.max(...values);
-  let pad = Math.max(1, (hi - lo) * 0.16);
-  lo -= pad;
-  hi += pad;
-  const y = (v) => T + ((hi - v) / (hi - lo)) * ph;
-  const dates = data.map((d) => new Date(d.date + 'T12:00:00').getTime());
-  const start = Math.min(...dates),
-    end = Math.max(...dates);
-  const x = (i) => (start === end ? L + pw / 2 : L + ((dates[i] - start) / (end - start)) * pw);
-  const pts = data.map((d, i) => `${x(i).toFixed(1)},${y(d.value).toFixed(1)}`).join(' ');
-  let grid = '';
-  for (let i = 0; i <= 4; i++) {
-    let val = hi - ((hi - lo) * i) / 4,
-      yy = y(val);
-    grid += `<line x1="${L}" x2="${W - R}" y1="${yy}" y2="${yy}" stroke="#2b5968" stroke-dasharray="4 5"/><text x="${L - 9}" y="${yy + 4}" text-anchor="end" font-size="12" fill="#93c5fd">${num(val)}</text>`;
-  }
-  const labels =
-    data.length === 1
-      ? [0]
-      : [0, Math.floor((data.length - 1) / 2), data.length - 1].filter(
-          (v, i, a) => a.indexOf(v) === i,
-        );
-  let ticks = labels
-    .map(
-      (i) =>
-        `<text x="${x(i)}" y="${H - 15}" text-anchor="middle" font-size="12" fill="#93c5fd">${dateFmt(data[i].date)}</text>`,
-    )
-    .join('');
-  let goal =
-    Number(db.goal) > 0
-      ? `<line x1="${L}" x2="${W - R}" y1="${y(Number(db.goal))}" y2="${y(Number(db.goal))}" stroke="#f97316" stroke-width="2" stroke-dasharray="8 5"/>`
-      : '';
-  let circles = data
-    .map(
-      (d, i) =>
-        `<circle cx="${x(i)}" cy="${y(d.value)}" r="5" fill="#2563eb" stroke="#ffffff" stroke-width="2"><title>${dateFmt(d.date)}: ${num(d.value)} kg</title></circle>`,
-    )
-    .join('');
-  return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Evolução de peso em quilogramas" style="display:block;max-width:100%;height:auto;min-height:200px">${grid}${goal}<polyline fill="none" stroke="#2563eb" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" points="${pts}"/>${circles}${ticks}<text x="${L}" y="15" font-size="12" fill="#93c5fd">Peso (kg)</text></svg>`;
-}
-let weightPeriod = 'all';
-function weightRows() {
-  const rows = db.weights.slice().sort((a, b) => a.date.localeCompare(b.date));
-  if (weightPeriod === 'all') {
-    return rows;
-  }
-  const cutoff = new Date();
-  cutoff.setHours(0, 0, 0, 0);
-  cutoff.setDate(cutoff.getDate() - Number(weightPeriod) + 1);
-  return rows.filter((x) => new Date(x.date + 'T12:00:00') >= cutoff);
-}
-function weight() {
-  const sorted = db.weights.slice().sort((a, b) => a.date.localeCompare(b.date));
-  const first = sorted[0],
-    last = sorted.at(-1);
-  const delta = first && last ? Number(last.value) - Number(first.value) : null;
-  const v = editing ? db.weights.find((x) => x.id === editing) : null;
-  const filtered = weightRows(),
-    pf = filtered[0],
-    pl = filtered.at(-1);
-  const periodDelta = pf && pl && filtered.length > 1 ? Number(pl.value) - Number(pf.value) : null;
-  const percent =
-    first && last && Number(first.value) > 0 ? (100 * delta) / Number(first.value) : null;
-  const goal = Number(db.goal);
-  const progress =
-    first && last && goal > 0 && Number(first.value) !== goal
-      ? Math.max(
-          0,
-          Math.min(
-            100,
-            (100 * (Number(first.value) - Number(last.value))) / (Number(first.value) - goal),
-          ),
-        )
-      : null;
-  const avg = filtered.length
-    ? filtered.reduce((a, w) => a + Number(w.value), 0) / filtered.length
-    : null;
-  const opt = [
-    ['all', 'Todo o período'],
-    ['7', '7 dias'],
-    ['30', '30 dias'],
-    ['90', '90 dias'],
-    ['180', '6 meses'],
-    ['365', '1 ano'],
-  ]
-    .map(
-      ([val, label]) =>
-        `<option value="${val}" ${weightPeriod === val ? 'selected' : ''}>${label}</option>`,
-    )
-    .join('');
-  return `<h1>Evolução de peso</h1><div class="grid"><div class="metric"><span>Peso inicial</span><strong>${first ? num(first.value) + ' kg' : '—'}</strong></div><div class="metric"><span>Peso atual</span><strong>${last ? num(last.value) + ' kg' : '—'}</strong></div><div class="metric"><span>Variação total</span><strong>${delta === null ? '—' : (delta > 0 ? '+' : '') + num(delta) + ' kg'}</strong></div><div class="metric"><span>Meta</span><strong>${goal > 0 ? num(goal) + ' kg' : '—'}</strong></div></div><div class="panel"><h2>Gráfico de evolução</h2><label for="period">Período</label><select id="period" onchange="drawChart()">${opt}</select><div id="chartTarget">${chartSVG(filtered)}</div><p class="muted">A distância horizontal representa o tempo entre pesagens. Linha pontilhada: meta de peso, quando definida.</p><div class="two"><div class="item"><div class="muted">Variação no período</div><h2>${periodDelta === null ? '—' : (periodDelta > 0 ? '+' : '') + num(periodDelta) + ' kg'}</h2></div><div class="item"><div class="muted">Média no período</div><h2>${avg === null ? '—' : num(avg) + ' kg'}</h2></div></div><p class="muted">${filtered.length} pesagem(ns) no período • Variação desde o início: ${percent === null ? '—' : (percent > 0 ? '+' : '') + num(percent) + '%'}</p></div><div class="panel"><h2>Progresso da meta</h2>${progress === null ? '<p class="muted">Defina uma meta e registre pesagens para acompanhar seu progresso.</p>' : `<div class="row between"><strong>${num(progress)}%</strong><span class="muted">${num(Math.abs(Number(last.value) - goal))} kg de diferença até a meta</span></div><div style="background:#e5e7eb;border-radius:99px;height:12px;overflow:hidden;margin:12px 0"><div style="background:linear-gradient(90deg,#2563eb,#93c5fd);width:${progress}%;height:100%"></div></div><p class="muted">O progresso compara a primeira e a última pesagem com a meta definida. Não representa uma previsão.</p>`}</div><div class="panel"><h2>${v ? 'Editar' : 'Nova'} pesagem</h2><form onsubmit="submitWeight(event)"><div class="two"><div><label>Data</label><input type="date" name="date" value="${v?.date || today()}" required></div><div><label>Peso (kg)</label><input type="number" name="value" min="0.1" max="500" step="0.01" required value="${v?.value || ''}" placeholder="Ex.: 88.4"></div></div><div class="row actions"><button type="submit" class="primary">Salvar pesagem</button>${v ? button('Cancelar', 'cancel-weight') : ''}</div></form><form onsubmit="saveGoal(event)"><label>Meta de peso (kg)</label><div class="row"><input style="flex:1" type="number" name="goal" min="0.1" max="500" step="0.01" value="${db.goal || ''}" placeholder="Defina sua meta"><button type="submit">Salvar meta</button></div></form></div><div class="panel"><h2>Histórico de pesagens</h2>${
-    sorted.length
-      ? sorted
-          .slice()
-          .reverse()
-          .map(
-            (x) =>
-              `<div class="item row between"><div><b>${num(x.value)} kg</b><div class="muted">${dateFmt(x.date)}</div></div><div class="row">${button('Editar', 'edit-weight', x.id)}${button('Excluir', 'delete-weight', x.id, 'danger')}</div></div>`,
-          )
-          .join('')
-      : '<p class="empty">Nenhuma pesagem registrada.</p>'
-  }</div>`;
-}
-function drawChart() {
-  weightPeriod = $('period').value;
-  render();
-}
-function submitWeight(e) {
-  e.preventDefault();
-  const f = new FormData(e.target);
-  const value = Number(f.get('value'));
-  if (!Number.isFinite(value) || value <= 0 || value > 500) {
-    alert('Informe um peso válido.');
-    return;
-  }
-  const date = String(f.get('date') || '');
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(new Date(date + 'T12:00:00').getTime())) {
-    alert('Informe uma data válida.');
-    return;
-  }
-  const item = { id: editing || uid(), date, value };
-  if (editing) {
-    db.weights = db.weights.map((x) => (x.id === editing ? item : x));
-  } else {
-    db.weights.push(item);
-  }
-  editing = null;
-  save();
-}
-function saveGoal(e) {
-  e.preventDefault();
-  const n = Number(new FormData(e.target).get('goal'));
-  db.goal = n > 0 ? n : null;
-  save();
-}
 function restoreTrash(id) {
   const entry = (db.trash || []).find((x) => x.trashId === id);
   if (!entry) {
@@ -1568,7 +1382,7 @@ function backupStatusText() {
           ' • ' +
           esc(m.fileName || '')
       : 'Nenhum backup V2.2 preparado neste navegador.';
-  } catch (e) {
+  } catch {
     return 'Histórico de backups indisponível.';
   }
 }
@@ -1736,7 +1550,7 @@ async function importEncryptedData() {
     db = { ...blank(), ...obj.data };
     save();
     alert('Backup criptografado restaurado.');
-  } catch (e) {
+  } catch {
     alert('Não foi possível abrir o backup criptografado. Verifique a senha e o arquivo.');
   }
 }
@@ -1810,7 +1624,7 @@ async function importData() {
       render();
       syncNav();
       alert('Backup restaurado e validado.');
-    } catch (e) {
+    } catch {
       db = old;
       throw Error('Falha ao gravar os dados. Os registros anteriores foram mantidos.');
     }
@@ -1973,7 +1787,6 @@ function handleAction(e) {
         compounds: [{ name: '', dose: '', unit: 'mg' }],
       };
       compounds = appDraft.compounds.map((c) => ({ ...c }));
-      draftFromCalendar = true;
       setTab('aplicacoes');
       break;
     }
@@ -2078,22 +1891,6 @@ function handleAction(e) {
     case 'delete-cycle':
       if (id && CYCLE_ID_RE.test(id)) {
         confirmDelete('cycles', id);
-      }
-      break;
-    case 'edit-weight':
-      if (id) {
-        editing = id;
-        render();
-      }
-      break;
-    case 'cancel-weight':
-      editing = null;
-      render();
-      syncNav();
-      break;
-    case 'delete-weight':
-      if (id) {
-        confirmDelete('weights', id);
       }
       break;
     case 'cal-prev':
@@ -2221,4 +2018,19 @@ if (
       .register('./service-worker.js')
       .catch((err) => console.warn('Modo offline indisponível:', err)),
   );
+  // Avisa quando uma versão nova assumiu o controle, em vez de trocar o app em silêncio.
+  const hadController = Boolean(navigator.serviceWorker.controller);
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadController || document.getElementById('updateBanner')) {
+      return;
+    }
+    const bar = document.createElement('div');
+    bar.id = 'updateBanner';
+    bar.className = 'update-banner';
+    bar.setAttribute('role', 'status');
+    bar.innerHTML =
+      '<span>Nova versão disponível.</span><button type="button" class="primary">Atualizar</button>';
+    bar.querySelector('button').addEventListener('click', () => location.reload());
+    document.body.appendChild(bar);
+  });
 }
