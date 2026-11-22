@@ -1,8 +1,13 @@
 const CACHE_VERSION = '2.24';
 const CACHE_NAME = 'peptide-manager-shell-v' + CACHE_VERSION;
 const ASSETS = [
-  './', './index.html', './manifest.webmanifest', './app.js', './styles.css',
-  './icon-192.png', './icon-512.png',
+  './',
+  './index.html',
+  './manifest.webmanifest',
+  './app.js',
+  './styles.css',
+  './icon-192.png',
+  './icon-512.png',
 ];
 
 self.addEventListener('install', (event) => {
@@ -14,7 +19,8 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(
     (async () => {
       for (const key of await caches.keys()) {
-        if (key.startsWith('peptide-manager-shell-') && key !== CACHE_NAME) await caches.delete(key);
+        if (key.startsWith('peptide-manager-shell-') && key !== CACHE_NAME)
+          await caches.delete(key);
       }
       await self.clients.claim();
     })(),

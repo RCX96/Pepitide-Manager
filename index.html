@@ -9,7 +9,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="icon" href="./icon-192.png" type="image/png" />
-    <link rel="stylesheet" href="./styles.css?v=2.23" />
+    <link rel="stylesheet" href="./styles.css?v=2.24" />
   </head>
   <body>
     <header>
@@ -17,13 +17,51 @@
     </header>
     <main id="app"></main>
     <nav id="bottom-nav">
-      <button type="button" data-action="set-tab" data-id="inicio">⌂ Início</button>
-      <button type="button" data-action="set-tab" data-id="aplicacoes">♢ Aplicações</button>
-      <button type="button" data-action="set-tab" data-id="ciclos">◷ Ciclos</button>
-      <button type="button" data-action="set-tab" data-id="relatorios">▤ Relatórios</button>
-      <button type="button" data-action="set-tab" data-id="configuracoes">⚙ Ajustes</button>
+      <button type="button" data-action="set-tab" data-id="inicio" aria-label="Início">
+        Início
+      </button>
+      <button type="button" data-action="set-tab" data-id="aplicacoes" aria-label="Aplicações">
+        Aplicações
+      </button>
+      <button type="button" data-action="set-tab" data-id="ciclos" aria-label="Ciclos">
+        Ciclos
+      </button>
+      <button type="button" data-action="set-tab" data-id="relatorios" aria-label="Relatórios">
+        Relatórios
+      </button>
+      <button type="button" data-action="set-tab" data-id="configuracoes" aria-label="Ajustes">
+        Ajustes
+      </button>
     </nav>
-    <footer></footer>
+    <footer>
+      <div class="footer-actions">
+        <button
+          type="button"
+          data-action="export-data"
+          class="footer-backup"
+          title="Baixar cópia dos seus registros"
+          aria-label="Baixar backup dos registros"
+        >
+          ↧ Backup
+        </button>
+        <button
+          type="button"
+          data-action="set-tab"
+          data-id="dados"
+          title="Gerenciar registros"
+          aria-label="Abrir seção de Dados"
+        >
+          ⚙ Dados
+        </button>
+      </div>
+      <div>
+        <span class="footer-version">v2.24</span>
+        <span class="footer-note"
+          >Dados armazenados localmente neste navegador. Exportar backup antes de trocar de aparelho
+          ou navegador — não há sincronização automática.</span
+        >
+      </div>
+    </footer>
     <dialog id="confirmDialog">
       <h2>Confirmar exclusão</h2>
       <p id="confirmText"></p>
@@ -36,6 +74,6 @@
       </div>
     </dialog>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
-    <script src="./app.js?v=2.23" defer></script>
+    <script src="./app.js?v=2.24" defer></script>
   </body>
 </html>
