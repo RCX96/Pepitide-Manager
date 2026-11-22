@@ -312,8 +312,8 @@ test('index.html não contém handlers onclick inline', () => {
   assert.equal(/\sonclick=/i.test(html), false);
 });
 
-test('menu não exibe a seção Dados (está no rodapé)', () => {
-  assert.equal(/data-id="dados"/i.test(html), true);
+test('menu não exibe a seção Dados', () => {
+  assert.equal(/data-id="dados"/i.test(html), false);
 });
 
 test('menu não exibe uma página separada de calendário', () => {

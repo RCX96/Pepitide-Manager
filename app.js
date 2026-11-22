@@ -262,11 +262,11 @@ function compoundNameList() {
 const button = (label, action, id = '', cls = '', extra = '') =>
   `<button type="button" class="${cls}" data-action="${action}"${id !== '' && id !== null && id !== undefined ? ` data-id="${esc(id)}"` : ''}${extra}>${label}</button>`;
 const navs = [
-  ['inicio', '⌂ Início'],
-  ['aplicacoes', '♢ Aplicações'],
-  ['ciclos', '◷ Ciclos'],
-  ['relatorios', '▤ Relatórios'],
-  ['configuracoes', '⚙ Ajustes'],
+  ['inicio', 'INÍCIO'],
+  ['aplicacoes', 'APLICAÇÕES'],
+  ['ciclos', 'CICLOS'],
+  ['relatorios', 'RELATÓRIOS'],
+  ['configuracoes', 'AJUSTES'],
 ];
 function navHTML() {
   return navs
@@ -276,8 +276,9 @@ function navHTML() {
     )
     .join('');
 }
+const VALID_TABS = ['inicio', 'aplicacoes', 'ciclos', 'relatorios', 'configuracoes'];
 function setTab(t) {
-  tab = t;
+  tab = VALID_TABS.includes(t) ? t : 'inicio';
   editing = null;
   render();
   syncNav();
@@ -2198,6 +2199,12 @@ if (typeof document !== 'undefined' && typeof document.addEventListener === 'fun
   window.addEventListener('click', handleAction);
 }
 
+if (typeof location !== 'undefined' && location.search) {
+  const startTab = new URLSearchParams(location.search).get('tab');
+  if (VALID_TABS.includes(startTab)) {
+    tab = startTab;
+  }
+}
 render();
 syncNav();
 setupCloudResumeSync();

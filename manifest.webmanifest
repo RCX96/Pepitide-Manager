@@ -13,17 +13,17 @@
   "shortcuts": [
     {
       "name": "Início",
-      "shortcut_path": "/?tab=inicio",
+      "url": "./?tab=inicio",
       "icons": [{ "src": "./icon-192.png", "sizes": "192x192", "type": "image/png" }]
     },
     {
-      "name": "Calendário",
-      "shortcut_path": "/?tab=calendario",
+      "name": "Ciclos",
+      "url": "./?tab=ciclos",
       "icons": [{ "src": "./icon-192.png", "sizes": "192x192", "type": "image/png" }]
     },
     {
       "name": "Aplicações",
-      "shortcut_path": "/?tab=aplicacoes",
+      "url": "./?tab=aplicacoes",
       "icons": [{ "src": "./icon-192.png", "sizes": "192x192", "type": "image/png" }]
     }
   ],
