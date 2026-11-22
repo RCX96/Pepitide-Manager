@@ -1,8 +1,12 @@
-const CACHE = 'peptide-manager-shell-v2.23';
-const ASSETS = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
+const CACHE_VERSION = '2.24';
+const CACHE_NAME = 'peptide-manager-shell-v' + CACHE_VERSION;
+const ASSETS = [
+  './', './index.html', './manifest.webmanifest', './app.js', './styles.css',
+  './icon-192.png', './icon-512.png',
+];
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(ASSETS)));
+  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS)));
   self.skipWaiting();
 });
 
@@ -10,7 +14,7 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(
     (async () => {
       for (const key of await caches.keys()) {
-        if (key.startsWith('peptide-manager-shell-') && key !== CACHE) await caches.delete(key);
+        if (key.startsWith('peptide-manager-shell-') && key !== CACHE_NAME) await caches.delete(key);
       }
       await self.clients.claim();
     })(),
@@ -20,7 +24,7 @@ self.addEventListener('activate', (event) => {
 // Rede primeiro para páginas: o usuário recebe a versão nova assim que houver conexão,
 // e o cache serve apenas como reserva offline.
 async function networkFirst(request) {
-  const cache = await caches.open(CACHE);
+  const cache = await caches.open(CACHE_NAME);
   try {
     const response = await fetch(request, { cache: 'no-cache' });
     if (response.ok) cache.put('./index.html', response.clone());
@@ -32,7 +36,7 @@ async function networkFirst(request) {
 
 // Cache primeiro com revalidação em segundo plano para ícones e manifesto.
 async function staleWhileRevalidate(request) {
-  const cache = await caches.open(CACHE);
+  const cache = await caches.open(CACHE_NAME);
   const hit = await cache.match(request);
   const refresh = fetch(request).then((response) => {
     if (response.ok) cache.put(request, response.clone());
