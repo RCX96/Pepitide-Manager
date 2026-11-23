@@ -988,6 +988,14 @@ dialog::backdrop {
   backdrop-filter: blur(4px);
 }
 
+.new-app-button {
+  width: 100%;
+  min-height: 56px;
+  margin-bottom: var(--space-4);
+  font-size: var(--fs-md);
+  font-weight: 700;
+}
+
 dialog.app-form-dialog {
   position: relative;
   width: min(720px, calc(100vw - 32px));
@@ -1196,7 +1204,7 @@ footer {
     order: 0;
   }
 
-  #app[data-tab='aplicacoes'] > .app-form-panel {
+  #app[data-tab='aplicacoes'] > .new-app-button {
     order: 1;
   }
   #app[data-tab='aplicacoes'] > .quick-filter {
@@ -1319,8 +1327,8 @@ footer {
     align-items: start;
   }
 
-  #app[data-tab='aplicacoes'] > .app-form-panel {
-    max-width: 680px;
+  #app[data-tab='aplicacoes'] > .new-app-button {
+    order: 1;
   }
   #app[data-tab='aplicacoes'] > .quick-filter {
     order: 2;

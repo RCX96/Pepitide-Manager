@@ -86,7 +86,13 @@ async function loadApp(initialData = null) {
         if (!elements.has(id)) elements.set(id, makeElement());
         return elements.get(id);
       },
-      createElement: () => ({ click() {}, remove() {}, style: {} }),
+      createElement: () => ({
+        ...makeElement(),
+        setAttribute() {},
+        addEventListener() {},
+        querySelector: () => null,
+        style: {},
+      }),
       body: { appendChild() {} },
     },
     navigator: {},
@@ -378,11 +384,13 @@ test('aplicação pode ser duplicada para uma nova data sem alterar o original',
     },
   ];
   testApp.copyApp('app-1');
+  const form = testApp.appFormHTML();
   const rendered = testApp.applications();
   assert.equal(testApp.db.applications.length, 1);
-  assert.equal(rendered.includes('Nova (cópia)'), true);
-  assert.equal(rendered.includes('value="Semaglutida"'), true);
+  assert.equal(form.includes('Nova (cópia)'), true);
+  assert.equal(form.includes('value="Semaglutida"'), true);
   assert.equal(rendered.includes('data-action="copy-app"'), true);
+  assert.equal(rendered.includes('<form'), false);
 });
 
 test('index.html não contém handlers onclick inline', async () => {

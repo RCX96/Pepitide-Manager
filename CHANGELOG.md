@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## 2.36
+
+- **Aplicações:** o formulário saiu da página e passa a abrir somente em popup. O botão "Nova
+  aplicação", estendido por toda a largura do conteúdo, e os botões Editar e Duplicar abrem o mesmo
+  diálogo, com os dados do registro quando aplicável.
+- **Atalhos:** "Repetir último registro" e o clique em um dia do calendário também abrem o popup.
+
 ## 2.35
 
 - **Início:** o botão "Registrar aplicação" agora abre o formulário de nova aplicação em um popup,

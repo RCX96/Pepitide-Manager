@@ -21,10 +21,13 @@ test('cria um ciclo e registra uma aplicação', async ({ page }) => {
   await page.getByRole('button', { name: 'Salvar ciclo' }).click();
   await expect(page.getByText('Ciclo E2E')).toBeVisible();
   await page.getByRole('button', { name: 'APLICAÇÕES' }).click();
-  await page.locator('#compoundName0').fill('Semaglutida');
-  await page.locator('#compoundDose0').fill('1');
-  await page.locator('select[name="cycleId"]').selectOption({ label: 'Ciclo E2E' });
-  await page.getByRole('button', { name: /Salvar aplicação/ }).click();
+  await page.getByRole('button', { name: 'Nova aplicação' }).click();
+  const dialog = page.locator('dialog#appFormDialog');
+  await dialog.locator('#compoundName0').fill('Semaglutida');
+  await dialog.locator('#compoundDose0').fill('1');
+  await dialog.locator('select[name="cycleId"]').selectOption({ label: 'Ciclo E2E' });
+  await dialog.getByRole('button', { name: /Salvar aplicação/ }).click();
+  await expect(dialog).toBeHidden();
   await expect(page.getByText('Semaglutida (1 mg)')).toBeVisible();
 });
 
@@ -52,12 +55,17 @@ test('editar aplicação foca o primeiro campo do formulário', async ({ page })
   await page.locator('input[name="name"]').fill('Ciclo foco');
   await page.getByRole('button', { name: 'Salvar ciclo' }).click();
   await page.goto('/?tab=aplicacoes');
-  await page.locator('#compoundName0').fill('Foco');
-  await page.locator('#compoundDose0').fill('1');
-  await page.locator('select[name="cycleId"]').selectOption({ label: 'Ciclo foco' });
-  await page.getByRole('button', { name: /Salvar aplicação/ }).click();
+  await page.getByRole('button', { name: 'Nova aplicação' }).click();
+  let dialog = page.locator('dialog#appFormDialog');
+  await dialog.locator('#compoundName0').fill('Foco');
+  await dialog.locator('#compoundDose0').fill('1');
+  await dialog.locator('select[name="cycleId"]').selectOption({ label: 'Ciclo foco' });
+  await dialog.getByRole('button', { name: /Salvar aplicação/ }).click();
   await page.getByRole('button', { name: 'Editar' }).click();
-  await expect(page.locator('#appDate')).toBeFocused();
+  dialog = page.locator('dialog#appFormDialog');
+  await expect(dialog).toBeVisible();
+  await expect(dialog.locator('#compoundName0')).toHaveValue('Foco');
+  await expect(dialog.locator('#appDate')).toBeFocused();
 });
 
 test('validação inline marca o campo inválido', async ({ page }) => {
@@ -65,9 +73,11 @@ test('validação inline marca o campo inválido', async ({ page }) => {
   await page.locator('input[name="name"]').fill('Ciclo validação');
   await page.getByRole('button', { name: 'Salvar ciclo' }).click();
   await page.goto('/?tab=aplicacoes');
-  await page.locator('select[name="cycleId"]').selectOption({ label: 'Ciclo validação' });
-  await page.getByRole('button', { name: /Salvar aplicação/ }).click();
-  await expect(page.locator('#compoundName0')).toHaveAttribute('aria-invalid', 'true');
+  await page.getByRole('button', { name: 'Nova aplicação' }).click();
+  const dialog = page.locator('dialog#appFormDialog');
+  await dialog.locator('select[name="cycleId"]').selectOption({ label: 'Ciclo validação' });
+  await dialog.getByRole('button', { name: /Salvar aplicação/ }).click();
+  await expect(dialog.locator('#compoundName0')).toHaveAttribute('aria-invalid', 'true');
   await expect(page.getByText('Preencha o nome e uma dose maior que zero para cada composto.').first()).toBeVisible();
 });
 
@@ -93,7 +103,7 @@ test('busca vem antes do histórico de aplicações no celular', async ({ page }
 test('consultas de aplicações ocupam a largura no desktop', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto('/?tab=aplicacoes');
-  const form = await page.locator('.app-form-panel').boundingBox();
+  const form = await page.locator('.new-app-button').boundingBox();
   const search = await page.locator('.quick-filter').boundingBox();
   const history = await page.locator('.history-panel').boundingBox();
   expect(form.y).toBeLessThan(search.y);
@@ -288,4 +298,13 @@ test('botão da página inicial abre o formulário em popup', async ({ page }) =
     JSON.parse(localStorage.getItem('peptide-manager-v1')).applications,
   );
   expect(saved.some((a) => a.compounds.some((c) => c.name === 'Popup'))).toBe(true);
+});
+
+test('página de aplicações só abre o formulário pelo botão', async ({ page }) => {
+  await page.goto('/?tab=aplicacoes');
+  await expect(page.locator('#appForm')).toHaveCount(0);
+  const button = page.getByRole('button', { name: 'Nova aplicação' });
+  await expect(button).toBeVisible();
+  await button.click();
+  await expect(page.locator('dialog#appFormDialog')).toBeVisible();
 });

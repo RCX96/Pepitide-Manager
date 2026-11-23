@@ -9,6 +9,7 @@ import {
   removeCompoundName,
   renameCompound,
   resetApp,
+  showAppDialog,
   setApplicationFilter,
   submitApp,
 } from './apps.js';
@@ -92,6 +93,7 @@ export async function handleAction(e) {
       if (!date) {
         return;
       }
+      updateEditing(null);
       updateAppDraft({
         id: null,
         date,
@@ -102,7 +104,7 @@ export async function handleAction(e) {
         compounds: [{ name: '', dose: '', unit: 'mg' }],
       });
       updateCompounds(appDraft.compounds.map((c) => ({ ...c })));
-      setTab('aplicacoes');
+      showAppDialog();
       break;
     }
     case 'export-data':

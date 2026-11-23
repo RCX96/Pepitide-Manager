@@ -10,16 +10,7 @@ import {
   updateCompounds,
   updateEditing,
 } from './state.js';
-import {
-  button,
-  clearFieldErrors,
-  emptyState,
-  focusFirstFormField,
-  render,
-  setFieldError,
-  setTab,
-  showToast,
-} from './ui.js';
+import { button, clearFieldErrors, emptyState, render, setFieldError, showToast } from './ui.js';
 import {
   $,
   compoundNameList,
@@ -96,7 +87,7 @@ export function quickRegister() {
   if (latest) {
     return copyApp(latest.id);
   }
-  setTab('aplicacoes');
+  openAppForm();
 }
 
 export function compoundFields() {
@@ -126,8 +117,7 @@ export function editApp(id) {
   updateEditing(id);
   updateAppDraft(null);
   updateCompounds(a.compounds.map((c) => ({ ...c })));
-  render();
-  focusFirstFormField();
+  showAppDialog();
 }
 
 export function copyApp(id) {
@@ -143,13 +133,14 @@ export function copyApp(id) {
     compounds: a.compounds.map((c) => ({ ...c })),
   });
   updateCompounds(appDraft.compounds.map((c) => ({ ...c })));
-  render();
+  showAppDialog();
 }
 
 export function resetApp() {
   updateEditing(null);
   updateAppDraft(null);
   updateCompounds([{ name: '', dose: '', unit: 'mg' }]);
+  document.getElementById('appFormDialog')?.close();
   render();
 }
 
@@ -188,13 +179,10 @@ export function appFormHTML() {
 }
 
 export function applications() {
-  return `<h1>Aplicações</h1>${appFormHTML()}<details class="panel history-panel" open><summary>Histórico de aplicações</summary><div id="applicationList">${applicationListHTML()}</div></details>`;
+  return `<h1>Aplicações</h1><button type="button" class="primary new-app-button" data-action="new-app">+ Nova aplicação</button><details class="panel history-panel" open><summary>Histórico de aplicações</summary><div id="applicationList">${applicationListHTML()}</div></details>`;
 }
 
-export function openAppForm() {
-  updateEditing(null);
-  updateAppDraft(null);
-  updateCompounds([{ name: '', dose: '', unit: 'mg' }]);
+export function showAppDialog() {
   const dlg = document.createElement('dialog');
   dlg.id = 'appFormDialog';
   dlg.className = 'app-form-dialog';
@@ -212,6 +200,13 @@ export function openAppForm() {
   if (first && typeof first.focus === 'function') {
     first.focus();
   }
+}
+
+export function openAppForm() {
+  updateEditing(null);
+  updateAppDraft(null);
+  updateCompounds([{ name: '', dose: '', unit: 'mg' }]);
+  showAppDialog();
 }
 
 export function submitApp(e) {
