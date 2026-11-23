@@ -546,7 +546,7 @@ test('syncWithCloud envia a alteração pendente e depois se alinha com a nuvem'
   testApp.calls = [];
   vm.runInContext(
     `supabaseClient = {}; supabaseUser = { id: 'u1' };
-     pushToCloud = async () => { calls.push('push'); };
+     pushToCloud = async () => { calls.push('push'); return true; };
      pullFromCloud = async (opts) => { calls.push('pull:' + JSON.stringify(opts || {})); };
      markPendingPush();`,
     testApp,
@@ -560,7 +560,7 @@ test('syncWithCloud baixa a nuvem quando não há nada pendente', async () => {
   testApp.calls = [];
   vm.runInContext(
     `supabaseClient = {}; supabaseUser = { id: 'u1' };
-     pushToCloud = async () => { calls.push('push'); };
+     pushToCloud = async () => { calls.push('push'); return true; };
      pullFromCloud = async (opts) => { calls.push('pull:' + JSON.stringify(opts || {})); };
      clearPendingPush();`,
     testApp,
@@ -574,10 +574,78 @@ test('syncWithCloud não faz nada sem conta conectada', async () => {
   testApp.calls = [];
   vm.runInContext(
     `supabaseClient = null; supabaseUser = null;
-     pushToCloud = async () => { calls.push('push'); };
+     pushToCloud = async () => { calls.push('push'); return true; };
      pullFromCloud = async () => { calls.push('pull'); };`,
     testApp,
   );
   await testApp.syncWithCloud();
   assert.deepEqual(Array.from(testApp.calls), []);
+});
+
+test('runMigrations preenche updatedAt, deleted e schemaVersion', () => {
+  const result = app.runMigrations({
+    applications: [{ id: 'a1', date: '2026-11-01', compounds: [{ name: 'A', dose: 1, unit: 'mg' }] }],
+    cycles: [],
+    weights: [],
+  });
+  assert.equal(result.schemaVersion, 3);
+  assert.equal(Array.isArray(result.deleted), true);
+  assert.equal(typeof result.applications[0].updatedAt, 'string');
+});
+
+test('runMigrations preserva schemaVersion já atual', () => {
+  const result = app.runMigrations({
+    applications: [],
+    cycles: [],
+    weights: [],
+    schemaVersion: 3,
+    deleted: [],
+  });
+  assert.equal(result.schemaVersion, 3);
+});
+
+test('validateBackup recusa backup de versão futura', () => {
+  assert.throws(
+    () =>
+      app.validateBackup({
+        applications: [],
+        cycles: [],
+        weights: [],
+        schemaVersion: 99,
+      }),
+    /versão mais nova/,
+  );
+});
+
+test('mergeDb mantém o registro com updatedAt mais recente', () => {
+  const local = {
+    applications: [
+      { id: 'a1', date: '2026-11-01', updatedAt: '2026-11-01T10:00:00Z', compounds: [{ name: 'A', dose: 1, unit: 'mg' }] },
+    ],
+    cycles: [],
+    weights: [],
+  };
+  const cloud = {
+    applications: [
+      { id: 'a1', date: '2026-11-01', updatedAt: '2026-11-02T10:00:00Z', compounds: [{ name: 'B', dose: 1, unit: 'mg' }] },
+    ],
+    cycles: [],
+    weights: [],
+  };
+  const merged = app.mergeDb(local, cloud);
+  assert.equal(merged.applications.length, 1);
+  assert.equal(merged.applications[0].compounds[0].name, 'B');
+});
+
+test('mergeDb remove registro com tombstone mais recente', () => {
+  const local = {
+    applications: [
+      { id: 'a1', date: '2026-11-01', updatedAt: '2026-11-01T10:00:00Z', compounds: [{ name: 'A', dose: 1, unit: 'mg' }] },
+    ],
+    cycles: [],
+    weights: [],
+    deleted: [{ type: 'applications', id: 'a1', deletedAt: '2026-11-02T10:00:00Z' }],
+  };
+  const merged = app.mergeDb(local, { applications: [], cycles: [], weights: [] });
+  assert.equal(merged.applications.length, 0);
 });

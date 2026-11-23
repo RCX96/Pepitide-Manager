@@ -1,4 +1,4 @@
-const CACHE_VERSION = '2.28';
+const CACHE_VERSION = '2.29';
 const CACHE_NAME = 'peptide-manager-shell-v' + CACHE_VERSION;
 const ASSETS = [
   './',
@@ -9,6 +9,7 @@ const ASSETS = [
   './icon-192.png',
   './icon-512.png',
   './icon-maskable-512.png',
+  './vendor/supabase.js',
 ];
 
 self.addEventListener('install', (event) => {

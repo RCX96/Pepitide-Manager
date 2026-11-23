@@ -12,7 +12,56 @@ const blank = () => ({
   trash: [],
   compoundCatalog: [],
   reminders: [],
+  deleted: [],
+  schemaVersion: 3,
 });
+const SCHEMA_VERSION = 3;
+const MIGRATIONS = [
+  {
+    to: 1,
+    run(d) {
+      const now = new Date().toISOString();
+      for (const type of ['applications', 'cycles', 'weights']) {
+        for (const r of d[type] || []) {
+          if (!r.updatedAt) {
+            r.updatedAt = now;
+          }
+        }
+      }
+      return d;
+    },
+  },
+  {
+    to: 2,
+    run(d) {
+      if (!Array.isArray(d.deleted)) {
+        d.deleted = [];
+      }
+      return d;
+    },
+  },
+  {
+    to: 3,
+    run(d) {
+      if (!Number.isFinite(Number(d.schemaVersion))) {
+        d.schemaVersion = 3;
+      }
+      return d;
+    },
+  },
+];
+function runMigrations(input) {
+  const d = { ...blank(), ...(input || {}) };
+  let version = Number(input && input.schemaVersion) || 0;
+  for (const m of MIGRATIONS) {
+    if (version < m.to) {
+      m.run(d);
+      version = m.to;
+      d.schemaVersion = version;
+    }
+  }
+  return d;
+}
 let db,
   loadError = '';
 try {
@@ -21,7 +70,15 @@ try {
   if (stored) {
     validateBackup(parsed);
   }
-  db = { ...blank(), ...parsed };
+  db = runMigrations(parsed);
+  if (!Array.isArray(db.trash)) {
+    db.trash = [];
+  }
+  try {
+    localStorage.setItem(KEY, JSON.stringify(db));
+  } catch {
+    /* ignora */
+  }
 } catch (e) {
   loadError =
     'Não foi possível ler os dados locais. Nenhum dado foi apagado. Faça uma cópia dos dados do navegador antes de tentar recuperar: ' +
@@ -45,18 +102,215 @@ let tab = 'inicio',
       ? localStorage.getItem('peptide-supabase-last-sync') || ''
       : '',
   syncTimer = null;
-const LOCK_KEY = 'peptide-manager-lock-v1';
-let unlocked = !localStorage.getItem(LOCK_KEY);
+const LOCK_KEY = 'peptide-manager-lock-v2';
+const LEGACY_LOCK_KEY = 'peptide-manager-lock-v1';
+let unlocked = !localStorage.getItem(LOCK_KEY) && !localStorage.getItem(LEGACY_LOCK_KEY);
+
+async function deriveLockHash(password, salt, iterations) {
+  const material = await crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(password),
+    'PBKDF2',
+    false,
+    ['deriveBits'],
+  );
+  const bits = await crypto.subtle.deriveBits(
+    { name: 'PBKDF2', salt, iterations, hash: 'SHA-256' },
+    material,
+    256,
+  );
+  return bytesToBase64(new Uint8Array(bits));
+}
+
+function getLockData() {
+  try {
+    const raw = localStorage.getItem(LOCK_KEY);
+    if (!raw) {
+      return null;
+    }
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+async function verifyLock(code) {
+  const data = getLockData();
+  if (!data) {
+    return false;
+  }
+  // migration from v1
+  const legacy = localStorage.getItem(LEGACY_LOCK_KEY);
+  if (legacy && !data.migrated) {
+    // accept legacy hash once
+    let legacyHash = legacy;
+    if (crypto?.subtle) {
+      legacyHash = await hashText(code);
+    }
+    if (legacyHash === legacy) {
+      // migrate
+      const salt = crypto.getRandomValues(new Uint8Array(16));
+      const iterations = 600000;
+      const hash = await deriveLockHash(code, salt, iterations);
+      localStorage.setItem(
+        LOCK_KEY,
+        JSON.stringify({ salt: bytesToBase64(salt), iterations, hash, migrated: true }),
+      );
+      localStorage.removeItem(LEGACY_LOCK_KEY);
+      return true;
+    }
+    return false;
+  }
+  const salt = base64ToBytes(data.salt);
+  const hash = await deriveLockHash(code, salt, data.iterations || 600000);
+  return hash === data.hash;
+}
+
+async function setLock() {
+  if (!crypto?.subtle) {
+    showToast('O bloqueio exige HTTPS ou ambiente seguro.');
+    return;
+  }
+  const first = await promptDialog({
+    title: 'Código local',
+    text: 'Crie um código com pelo menos 6 caracteres:',
+    type: 'password',
+  });
+  if (!first || first.length < 6) {
+    showToast('O código precisa ter pelo menos 6 caracteres.');
+    return;
+  }
+  const second = await promptDialog({
+    title: 'Confirmar',
+    text: 'Repita o código:',
+    type: 'password',
+  });
+  if (first !== second) {
+    showToast('Os códigos não conferem.');
+    return;
+  }
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const iterations = 600000;
+  const hash = await deriveLockHash(first, salt, iterations);
+  localStorage.setItem(LOCK_KEY, JSON.stringify({ salt: bytesToBase64(salt), iterations, hash }));
+  unlocked = true;
+  showToast('Código local criado.');
+  render();
+}
+
+async function removeLock() {
+  const code = await promptDialog({
+    title: 'Remover proteção',
+    text: 'Digite o código atual:',
+    type: 'password',
+  });
+  if (!code || !(await verifyLock(code))) {
+    showToast('Código incorreto.');
+    return;
+  }
+  localStorage.removeItem(LOCK_KEY);
+  showToast('Proteção removida.');
+  render();
+}
+
+async function unlockApp() {
+  const input = $('unlockCode');
+  const code = input ? input.value : '';
+  // rate limiting
+  const attempts = Number(localStorage.getItem('peptide-lock-attempts') || '0');
+  const lockUntil = Number(localStorage.getItem('peptide-lock-until') || '0');
+  if (Date.now() < lockUntil) {
+    showToast('Muitas tentativas. Aguarde e tente novamente.');
+    return;
+  }
+  if (await verifyLock(code)) {
+    localStorage.removeItem('peptide-lock-attempts');
+    localStorage.removeItem('peptide-lock-until');
+    unlocked = true;
+    render();
+  } else {
+    const next = attempts + 1;
+    localStorage.setItem('peptide-lock-attempts', String(next));
+    if (next >= 5) {
+      const wait = next >= 7 ? 5 * 60 * 1000 : next >= 6 ? 60 * 1000 : 30 * 1000;
+      localStorage.setItem('peptide-lock-until', String(Date.now() + wait));
+    }
+    showToast('Código incorreto.');
+  }
+}
 const $ = (id) => document.getElementById(id),
   esc = (x) =>
     String(x ?? '').replace(
       /[&<>"']/g,
       (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c],
     );
+// Diálogos e avisos (substituem alert/confirm/prompt)
+function showToast(text, type = 'info') {
+  let container = document.getElementById('toastContainer');
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'toastContainer';
+    container.style.cssText =
+      'position:fixed;bottom:16px;left:50%;transform:translateX(-50%);z-index:9999;display:flex;flex-direction:column;gap:8px;';
+    document.body.appendChild(container);
+  }
+  const toast = document.createElement('div');
+  toast.setAttribute('role', type === 'error' ? 'alert' : 'status');
+  toast.setAttribute('aria-live', type === 'error' ? 'assertive' : 'polite');
+  toast.textContent = text;
+  toast.style.cssText =
+    'padding:10px 16px;border-radius:8px;background:#1f2937;color:#fff;box-shadow:0 4px 12px rgba(0,0,0,.3);max-width:90vw;';
+  container.appendChild(toast);
+  setTimeout(() => toast.remove(), 3000);
+}
+function confirmDialog(title, text) {
+  return new Promise((resolve) => {
+    const dlg = document.createElement('dialog');
+    dlg.innerHTML = `<h2>${esc(title)}</h2><p>${esc(text)}</p><div class="row between"><button type="button" data-cancel>Cancelar</button><button type="button" class="danger" data-ok>Confirmar</button></div>`;
+    document.body.appendChild(dlg);
+    dlg.showModal();
+    dlg.querySelector('[data-ok]').addEventListener('click', () => {
+      dlg.close();
+      dlg.remove();
+      resolve(true);
+    });
+    dlg.querySelector('[data-cancel]').addEventListener('click', () => {
+      dlg.close();
+      dlg.remove();
+      resolve(false);
+    });
+    dlg.addEventListener('close', () => resolve(false), { once: true });
+  });
+}
+function promptDialog({ title, text, type = 'text', value = '' } = {}) {
+  return new Promise((resolve) => {
+    const dlg = document.createElement('dialog');
+    dlg.innerHTML = `<h2>${esc(title)}</h2><p>${esc(text)}</p><input type="${type === 'password' ? 'password' : 'text'}" value="${esc(value)}" style="width:100%" /><div class="row between"><button type="button" data-cancel>Cancelar</button><button type="button" class="primary" data-ok>OK</button></div>`;
+    document.body.appendChild(dlg);
+    const input = dlg.querySelector('input');
+    dlg.showModal();
+    input.focus();
+    const finish = (v) => {
+      dlg.close();
+      dlg.remove();
+      resolve(v);
+    };
+    dlg.querySelector('[data-ok]').addEventListener('click', () => finish(input.value));
+    dlg.querySelector('[data-cancel]').addEventListener('click', () => finish(null));
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        finish(input.value);
+      }
+      if (e.key === 'Escape') {
+        finish(null);
+      }
+    });
+  });
+}
 const today = () => new Date().toLocaleDateString('en-CA');
 const save = () => {
   if (loadError) {
-    alert('Gravação bloqueada: os dados locais precisam ser recuperados antes de continuar.');
+    showToast('Gravação bloqueada: os dados locais precisam ser recuperados antes de continuar.');
     return;
   }
   try {
@@ -64,8 +318,18 @@ const save = () => {
     localStorage.setItem(KEY, JSON.stringify(db));
     scheduleCloudSync();
     render();
+    if (!localStorage.getItem('peptide-storage-persist-requested')) {
+      try {
+        if (navigator.storage && navigator.storage.persist) {
+          navigator.storage.persist().catch(() => {});
+        }
+        localStorage.setItem('peptide-storage-persist-requested', '1');
+      } catch {
+        /* ignora */
+      }
+    }
   } catch (e) {
-    alert(
+    showToast(
       'Não foi possível salvar com segurança: ' +
         e.message +
         '\nOs dados persistidos não foram substituídos. Recarregue o aplicativo para recuperar o último estado salvo.',
@@ -131,7 +395,12 @@ function filteredApplications() {
 }
 function setApplicationFilter(value) {
   applicationFilter = String(value || '');
-  render();
+  const el = document.getElementById('applicationList');
+  if (el) {
+    el.innerHTML = applicationListHTML();
+  } else {
+    render();
+  }
 }
 function renameCompound(oldName, newName) {
   const clean = String(newName || '').trim();
@@ -196,38 +465,6 @@ async function hashText(value) {
   }
   return btoa(unescape(encodeURIComponent(value)));
 }
-async function setLock() {
-  const first = prompt('Crie um código local com pelo menos 4 caracteres:');
-  if (!first || first.length < 4) {
-    return alert('O código precisa ter pelo menos 4 caracteres.');
-  }
-  const second = prompt('Repita o código:');
-  if (first !== second) {
-    return alert('Os códigos não conferem.');
-  }
-  localStorage.setItem(LOCK_KEY, await hashText(first));
-  unlocked = true;
-  alert('Código local criado.');
-  render();
-}
-async function removeLock() {
-  const code = prompt('Digite o código atual para remover a proteção:');
-  if (!code || (await hashText(code)) !== localStorage.getItem(LOCK_KEY)) {
-    return alert('Código incorreto.');
-  }
-  localStorage.removeItem(LOCK_KEY);
-  alert('Proteção removida.');
-  render();
-}
-async function unlockApp() {
-  const input = $('unlockCode');
-  if (!input || (await hashText(input.value)) !== localStorage.getItem(LOCK_KEY)) {
-    alert('Código incorreto.');
-    return;
-  }
-  unlocked = true;
-  render();
-}
 function compoundNameList() {
   return `<datalist id="compoundNames">${rememberedCompoundNames()
     .map((name) => `<option value="${esc(name)}"></option>`)
@@ -263,12 +500,18 @@ function syncNav() {
     return;
   }
   for (const b of n.querySelectorAll('button')) {
-    b.classList.toggle('active', b.getAttribute('data-id') === tab);
+    const active = b.getAttribute('data-id') === tab;
+    b.classList.toggle('active', active);
+    if (active) {
+      b.setAttribute('aria-current', 'page');
+    } else {
+      b.removeAttribute('aria-current');
+    }
   }
 }
 function extraPanels() {
   if (tab === 'aplicacoes') {
-    return `<div class="panel quick-filter"><h2>Buscar aplicações</h2><label class="sr-only" for="applicationSearch">Buscar aplicações</label><input id="applicationSearch" type="search" aria-label="Buscar aplicações" value="${esc(applicationFilter)}" placeholder="Composto, data ou observação" oninput="setApplicationFilter(this.value)"></div>`;
+    return `<div class="panel quick-filter"><h2>Buscar aplicações</h2><label class="sr-only" for="applicationSearch">Buscar aplicações</label><input id="applicationSearch" type="search" aria-label="Buscar aplicações" value="${esc(applicationFilter)}" placeholder="Composto, data ou observação" data-filter="apps"></div>`;
   }
   if (tab === 'configuracoes') {
     const names = rememberedCompoundNames().filter(
@@ -276,7 +519,7 @@ function extraPanels() {
         !catalogFilter ||
         n.toLocaleLowerCase('pt-BR').includes(catalogFilter.toLocaleLowerCase('pt-BR')),
     );
-    return `<div class="panel"><h2>Catálogo de compostos</h2><input type="search" placeholder="Filtrar catálogo" value="${esc(catalogFilter)}" oninput="catalogFilter=this.value;render()"><div class="catalog-list">${names.length ? names.map((name) => `<div class="row between catalog-row"><span>${esc(name)}</span><span class="row"><button type="button" data-action="rename-compound" data-id="${esc(name)}">Renomear</button><button type="button" class="danger" data-action="remove-compound-name" data-id="${esc(name)}">Remover</button></span></div>`).join('') : '<p class="empty">Nenhum composto salvo.</p>'}</div></div><div class="panel"><h2>Proteção local</h2>${localStorage.getItem('peptide-manager-lock-v1') ? button('Alterar código local', 'set-lock') + button('Remover código local', 'remove-lock') : button('Criar código local', 'set-lock', '', 'primary')}</div>`;
+    return `<div class="panel"><h2>Catálogo de compostos</h2><input type="search" placeholder="Filtrar catálogo" value="${esc(catalogFilter)}" data-filter="catalog"><div class="catalog-list">${names.length ? names.map((name) => `<div class="row between catalog-row"><span>${esc(name)}</span><span class="row"><button type="button" data-action="rename-compound" data-id="${esc(name)}">Renomear</button><button type="button" class="danger" data-action="remove-compound-name" data-id="${esc(name)}">Remover</button></span></div>`).join('') : '<p class="empty">Nenhum composto salvo.</p>'}</div></div><div class="panel"><h2>Proteção local</h2>${localStorage.getItem('peptide-manager-lock-v1') ? button('Alterar código local', 'set-lock') + button('Remover código local', 'remove-lock') : button('Criar código local', 'set-lock', '', 'primary')}</div>`;
   }
   return '';
 }
@@ -335,7 +578,7 @@ function decorateCalendarCompounds() {
 function applicationsExtraPanel() {
   const names = rememberedCompoundNames();
   const history = historyCompound ? compoundHistory(historyCompound) : [];
-  return `<div class="panel"><h2>Histórico por composto</h2><label for="historyCompound">Composto</label><select id="historyCompound" aria-label="Filtrar histórico por composto" onchange="historyCompound=this.value;render()"><option value="">Escolha um composto</option>${names.map((n) => `<option value="${esc(n)}" ${historyCompound === n ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select>${historyCompound ? (history.length ? history.map((a) => `<div class="item"><b>${dateFmt(a.date)} ${esc(a.time || '')}</b><p>${a.compounds.map((c) => `${esc(c.name)} (${esc(c.dose)} ${esc(c.unit)})`).join(' + ')}</p></div>`).join('') : '<p class="empty">Nenhum registro para este composto.</p>') : ''}</div>`;
+  return `<div class="panel"><h2>Histórico por composto</h2><label for="historyCompound">Composto</label><select id="historyCompound" aria-label="Filtrar histórico por composto" data-change="history-compound"><option value="">Escolha um composto</option>${names.map((n) => `<option value="${esc(n)}" ${historyCompound === n ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select>${historyCompound ? (history.length ? history.map((a) => `<div class="item"><b>${dateFmt(a.date)} ${esc(a.time || '')}</b><p>${a.compounds.map((c) => `${esc(c.name)} (${esc(c.dose)} ${esc(c.unit)})`).join(' + ')}</p></div>`).join('') : '<p class="empty">Nenhum registro para este composto.</p>') : ''}</div>`;
 }
 function encryptedBackupPanel() {
   return `<div class="panel"><h2>Backup criptografado</h2><div class="row">${button('Exportar criptografado', 'export-encrypted', '', 'primary')}${button('Importar criptografado', 'import-encrypted')}</div></div>`;
@@ -429,12 +672,20 @@ function confirmDelete(type, id) {
       return;
     }
     db.trash = Array.isArray(db.trash) ? db.trash : [];
+    const linkedApplicationIds =
+      type === 'cycles' ? db.applications.filter((a) => a.cycleId === id).map((a) => a.id) : [];
     db.trash.push({
       trashId: uid(),
       type,
       deletedAt: new Date().toISOString(),
       item: JSON.parse(JSON.stringify(it)),
+      ...(type === 'cycles' ? { linkedApplicationIds } : {}),
     });
+    db.deleted = Array.isArray(db.deleted) ? db.deleted : [];
+    db.deleted.push({ type, id, deletedAt: new Date().toISOString() });
+    if (db.deleted.length > 5000) {
+      db.deleted = db.deleted.slice(db.deleted.length - 5000);
+    }
     db[type] = db[type].filter((x) => x.id !== id);
     if (type === 'cycles') {
       db.applications.forEach((a) => {
@@ -623,7 +874,7 @@ function compoundFields() {
   return compounds
     .map(
       (c, i) =>
-        `<div class="item"><div class="row between"><b>Composto ${i + 1}</b>${compounds.length > 1 ? button('Remover', 'remove-compound', i, 'danger') : ''}</div><label for="compoundName${i}">Nome</label><input id="compoundName${i}" list="compoundNames" aria-label="Nome do composto ${i + 1}" value="${esc(c.name)}" oninput="compounds[${i}].name=this.value" onblur="const last=lastCompoundEntry(this.value);if(last&&!compounds[${i}].dose){compounds[${i}].dose=last.dose;compounds[${i}].unit=last.unit;$('compoundList').innerHTML=compoundFields()}" placeholder="Nome do composto"><div class="two"><div><label for="compoundDose${i}">Dose</label><input id="compoundDose${i}" aria-label="Dose do composto ${i + 1}" type="number" min="0" step="any" value="${esc(c.dose)}" oninput="compounds[${i}].dose=this.value" placeholder="Ex.: 1.5"></div><div><label for="compoundUnit${i}">Unidade</label><select id="compoundUnit${i}" aria-label="Unidade do composto ${i + 1}" onchange="compounds[${i}].unit=this.value">${['mg', 'mcg', 'mL', 'UI'].map((u) => `<option ${c.unit === u ? 'selected' : ''}>${u}</option>`).join('')}</select></div></div></div>`,
+        `<div class="item"><div class="row between"><b>Composto ${i + 1}</b>${compounds.length > 1 ? button('Remover', 'remove-compound', i, 'danger') : ''}</div><label for="compoundName${i}">Nome</label><input id="compoundName${i}" list="compoundNames" aria-label="Nome do composto ${i + 1}" value="${esc(c.name)}" data-compound="name" data-index="${i}" data-compound-blur="name" data-index="${i}" placeholder="Nome do composto"><div class="two"><div><label for="compoundDose${i}">Dose</label><input id="compoundDose${i}" aria-label="Dose do composto ${i + 1}" type="number" min="0" step="any" value="${esc(c.dose)}" data-compound="dose" data-index="${i}" placeholder="Ex.: 1.5"></div><div><label for="compoundUnit${i}">Unidade</label><select id="compoundUnit${i}" aria-label="Unidade do composto ${i + 1}" data-compound="unit" data-index="${i}">${['mg', 'mcg', 'mL', 'UI'].map((u) => `<option ${c.unit === u ? 'selected' : ''}>${u}</option>`).join('')}</select></div></div></div>`,
     )
     .join('');
 }
@@ -666,36 +917,46 @@ function resetApp() {
   compounds = [{ name: '', dose: '', unit: 'mg' }];
   render();
 }
+function applicationListHTML() {
+  const visible = filteredApplications()
+    .slice()
+    .sort((x, y) => y.date.localeCompare(x.date));
+  if (!visible.length) {
+    return '<p class="empty">Nenhuma aplicação registrada.</p>';
+  }
+  return visible
+    .map(
+      (x) =>
+        `<div class="item"><div class="row between"><b>${dateFmt(x.date)} ${esc(x.time || '')}</b></div><p>${x.compounds.map((c) => `${esc(c.name)} (${esc(c.dose)} ${esc(c.unit)})`).join(' + ')}</p><p class="muted">${esc(db.cycles.find((c) => c.id === x.cycleId)?.name || 'Sem ciclo')} ${x.notes ? '• ' + esc(x.notes) : ''}</p><div class="row">${button('Duplicar', 'copy-app', x.id)}${button('Editar', 'edit-app', x.id)}${button('Excluir', 'delete-app', x.id, 'danger')}</div></div>`,
+    )
+    .join('');
+}
+
 function applications() {
   const visible = filteredApplications()
     .slice()
     .sort((x, y) => y.date.localeCompare(x.date));
   const a = editing ? db.applications.find((x) => x.id === editing) : appDraft;
   const mode = editing ? 'Editar' : a && a._isCopy === true ? 'Nova (cópia)' : 'Nova';
-  return `<h1>Aplicações</h1><div class="panel"><h2>${mode} aplicação</h2><form id="appForm" onsubmit="submitApp(event)"><div class="two"><div><label for="appDate">Data</label><input id="appDate" name="date" type="date" required value="${a?.date || today()}"></div><div><label for="appTime">Horário (opcional)</label><input id="appTime" name="time" type="time" value="${a?.time || ''}"></div></div><label for="appCycle">Ciclo obrigatório</label><select id="appCycle" name="cycleId"><option value="">Sem ciclo</option>${db.cycles
-    .filter((c) => CYCLE_ID_RE.test(c.id))
-    .map(
-      (c) =>
-        `<option value="${esc(c.id)}" ${a?.cycleId === c.id ? 'selected' : ''}>${esc(c.name)}</option>`,
-    )
-    .join(
-      '',
-    )}</select>${compoundNameList()}<div id="compoundList">${compoundFields()}</div>${button('+ Adicionar composto', 'add-compound')}<label for="appNotes">Observações</label><textarea id="appNotes" name="notes" placeholder="Observações opcionais">${esc(a?.notes || '')}</textarea><div class="row actions"><button class="primary" type="submit">${a ? 'Salvar alterações' : 'Salvar aplicação'}</button>${a ? button('Cancelar', 'cancel-app') : ''}</div></form></div><div class="panel"><h2>Histórico de aplicações</h2>${
-    visible.length
-      ? visible
-          .map(
-            (x) =>
-              `<div class="item"><div class="row between"><b>${dateFmt(x.date)} ${esc(x.time || '')}</b></div><p>${x.compounds.map((c) => `${esc(c.name)} (${esc(c.dose)} ${esc(c.unit)})`).join(' + ')}</p><p class="muted">${esc(db.cycles.find((c) => c.id === x.cycleId)?.name || 'Sem ciclo')} ${x.notes ? '• ' + esc(x.notes) : ''}</p><div class="row">${button('Duplicar', 'copy-app', x.id)}${button('Editar', 'edit-app', x.id)}${button('Excluir', 'delete-app', x.id, 'danger')}</div></div>`,
-          )
-          .join('')
-      : '<p class="empty">Nenhuma aplicação registrada.</p>'
-  }</div>`;
+  return (
+    `<div class="panel quick-filter"><h2>Buscar aplicações</h2><label class="sr-only" for="applicationSearch">Buscar aplicações</label><input id="applicationSearch" type="search" aria-label="Buscar aplicações" value="${esc(applicationFilter)}" placeholder="Composto, data ou observação" data-filter="apps"></div>` +
+    `<h1>Aplicações</h1><div class="panel"><h2>${mode} aplicação</h2><form id="appForm" data-form="app"><div class="two"><div><label for="appDate">Data</label><input id="appDate" name="date" type="date" required value="${a?.date || today()}"></div><div><label for="appTime">Horário (opcional)</label><input id="appTime" name="time" type="time" value="${a?.time || ''}"></div></div><label for="appCycle">Ciclo obrigatório</label><select id="appCycle" name="cycleId" required><option value="">Selecione um ciclo</option>${db.cycles
+      .filter((c) => CYCLE_ID_RE.test(c.id))
+      .map(
+        (c) =>
+          `<option value="${esc(c.id)}" ${a?.cycleId === c.id ? 'selected' : ''}>${esc(c.name)}</option>`,
+      )
+      .join(
+        '',
+      )}</select>${compoundNameList()}<div id="compoundList">${compoundFields()}</div>${button('+ Adicionar composto', 'add-compound')}<label for="appNotes">Observações</label><textarea id="appNotes" name="notes" placeholder="Observações opcionais">${esc(a?.notes || '')}</textarea><div class="row actions"><button class="primary" type="submit">${a ? 'Salvar alterações' : 'Salvar aplicação'}</button>${a ? button('Cancelar', 'cancel-app') : ''}</div></form></div><div class="panel"><h2>Histórico de aplicações</h2><div id="applicationList">${applicationListHTML()}</div></div>` +
+    applicationsExtraPanel()
+  );
 }
 function submitApp(e) {
   e.preventDefault();
   const f = new FormData(e.target);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(String(f.get('date')))) {
-    alert('Informe uma data válida.');
+    showToast('Informe uma data válida.');
     return;
   }
   if (
@@ -707,12 +968,12 @@ function submitApp(e) {
         !['mg', 'mcg', 'mL', 'UI'].includes(c.unit),
     )
   ) {
-    alert('Preencha o nome e uma dose maior que zero para cada composto.');
+    showToast('Preencha o nome e uma dose maior que zero para cada composto.');
     return;
   }
   const cycleId = String(f.get('cycleId') || '');
   if (!CYCLE_ID_RE.test(cycleId) || !db.cycles.some((c) => c.id === cycleId)) {
-    alert('Selecione um ciclo válido para vincular a aplicação.');
+    showToast('Selecione um ciclo válido para vincular a aplicação.');
     return;
   }
   const item = {
@@ -723,6 +984,7 @@ function submitApp(e) {
     cycleId,
     notes: f.get('notes'),
     compounds: compounds.map((c) => ({ ...c, dose: Number(c.dose) })),
+    updatedAt: new Date().toISOString(),
   };
   if (editing) {
     db.applications = db.applications.map((a) => (a.id === editing ? item : a));
@@ -754,7 +1016,7 @@ function cycles() {
   const validCycles = db.cycles.filter(
     (x) => x && typeof x.id === 'string' && CYCLE_ID_RE.test(x.id),
   );
-  return `<h1>Ciclos salvos</h1><div class="panel"><h2>${c ? 'Editar ciclo' : 'Novo ciclo'}</h2><form onsubmit="submitCycle(event)"><label>Nome</label><input name="name" required value="${esc(c?.name || '')}" placeholder="Ex.: Ciclo de novembro"><div class="two"><div><label>Data de início</label><input type="date" name="start" required value="${c?.start || today()}"></div><div><label>Data de término (opcional)</label><input type="date" name="end" value="${c?.end || ''}"></div></div><label>Situação</label><select name="status"><option value="active" ${!c || c.status === 'active' ? 'selected' : ''}>Em andamento</option><option value="paused" ${c?.status === 'paused' ? 'selected' : ''}>Pausado</option><option value="finished" ${c?.status === 'finished' ? 'selected' : ''}>Finalizado</option></select><label>Observações</label><textarea name="notes">${esc(c?.notes || '')}</textarea><div class="row actions"><button type="submit" class="primary">Salvar ciclo</button>${c ? button('Cancelar', 'cancel-cycle') : ''}</div></form></div><div class="panel"><h2>Meus ciclos</h2>${validCycles.length ? validCycles.map((x) => `<div class="item"><div class="row between"><b>${esc(x.name)}</b><span class="pill">${x.status === 'active' ? 'Em andamento' : x.status === 'paused' ? 'Pausado' : 'Finalizado'}</span></div>${cycleDetails(x)}<p>${esc(x.notes || '')}</p><div class="row">${button('Editar', 'edit-cycle', x.id)}${x.status === 'active' ? button('Pausar', 'pause-cycle', x.id) : x.status === 'paused' ? button('Retomar', 'resume-cycle', x.id) : button('Reabrir', 'resume-cycle', x.id)}${x.status !== 'finished' ? button('Finalizar', 'finish-cycle', x.id) : ''}${button('Excluir', 'delete-cycle', x.id, 'danger')}</div></div>`).join('') : '<p class="empty">Nenhum ciclo salvo.</p>'}</div>`;
+  return `<h1>Ciclos salvos</h1><div class="panel"><h2>${c ? 'Editar ciclo' : 'Novo ciclo'}</h2><form data-form="cycle"><label>Nome</label><input name="name" required value="${esc(c?.name || '')}" placeholder="Ex.: Ciclo de novembro"><div class="two"><div><label>Data de início</label><input type="date" name="start" required value="${c?.start || today()}"></div><div><label>Data de término (opcional)</label><input type="date" name="end" value="${c?.end || ''}"></div></div><label>Situação</label><select name="status"><option value="active" ${!c || c.status === 'active' ? 'selected' : ''}>Em andamento</option><option value="paused" ${c?.status === 'paused' ? 'selected' : ''}>Pausado</option><option value="finished" ${c?.status === 'finished' ? 'selected' : ''}>Finalizado</option></select><label>Observações</label><textarea name="notes">${esc(c?.notes || '')}</textarea><div class="row actions"><button type="submit" class="primary">Salvar ciclo</button>${c ? button('Cancelar', 'cancel-cycle') : ''}</div></form></div><div class="panel"><h2>Meus ciclos</h2>${validCycles.length ? validCycles.map((x) => `<div class="item"><div class="row between"><b>${esc(x.name)}</b><span class="pill">${x.status === 'active' ? 'Em andamento' : x.status === 'paused' ? 'Pausado' : 'Finalizado'}</span></div>${cycleDetails(x)}<p>${esc(x.notes || '')}</p><div class="row">${button('Editar', 'edit-cycle', x.id)}${x.status === 'active' ? button('Pausar', 'pause-cycle', x.id) : x.status === 'paused' ? button('Retomar', 'resume-cycle', x.id) : button('Reabrir', 'resume-cycle', x.id)}${x.status !== 'finished' ? button('Finalizar', 'finish-cycle', x.id) : ''}${button('Excluir', 'delete-cycle', x.id, 'danger')}</div></div>`).join('') : '<p class="empty">Nenhum ciclo salvo.</p>'}</div>`;
 }
 function changeCycleStatus(id, status) {
   if (!id || !CYCLE_ID_RE.test(id)) {
@@ -782,19 +1044,20 @@ function changeCycleStatus(id, status) {
     c.end = '';
   }
   c.status = status;
+  c.updatedAt = new Date().toISOString();
   save();
 }
 function submitCycle(e) {
   e.preventDefault();
   const f = new FormData(e.target);
   if (f.get('end') && f.get('end') < f.get('start')) {
-    alert('A data final deve ser igual ou posterior ao início.');
+    showToast('A data final deve ser igual ou posterior ao início.');
     return;
   }
   const old = editing ? db.cycles.find((x) => x.id === editing && CYCLE_ID_RE.test(x.id)) : null;
   const cycleId = editing || uid();
   if (!CYCLE_ID_RE.test(cycleId)) {
-    alert('Identificador de ciclo inválido.');
+    showToast('Identificador de ciclo inválido.');
     return;
   }
   const item = {
@@ -805,6 +1068,7 @@ function submitCycle(e) {
     status: old?.status || 'active',
     notes: f.get('notes'),
     pauses: old?.pauses || [],
+    updatedAt: new Date().toISOString(),
   };
   if (editing) {
     db.cycles = db.cycles.map((x) => (x.id === editing ? item : x));
@@ -837,12 +1101,12 @@ function changeCycleStatusWithoutSave(c, status) {
   c.status = status;
 }
 
-function restoreTrash(id) {
+async function restoreTrash(id) {
   const entry = (db.trash || []).find((x) => x.trashId === id);
   if (!entry) {
     return;
   }
-  if (!confirm('Restaurar este registro da lixeira?')) {
+  if (!(await confirmDialog('', 'Restaurar este registro da lixeira?'))) {
     return;
   }
   const type = entry.type;
@@ -851,15 +1115,28 @@ function restoreTrash(id) {
   }
   const item = JSON.parse(JSON.stringify(entry.item));
   if (db[type].some((x) => x.id === item.id)) {
-    alert('Já existe um registro com o mesmo identificador.');
+    showToast('Já existe um registro com o mesmo identificador.');
     return;
   }
   db[type].push(item);
   db.trash = db.trash.filter((x) => x.trashId !== id);
+  if (type === 'cycles' && Array.isArray(entry.linkedApplicationIds)) {
+    for (const appId of entry.linkedApplicationIds) {
+      const app = db.applications.find((a) => a.id === appId);
+      if (app && (app.cycleId === null || app.cycleId === undefined)) {
+        app.cycleId = item.id;
+      }
+    }
+  }
   save();
 }
-function deleteTrash(id) {
-  if (!confirm('Excluir permanentemente este item da lixeira? Esta ação não pode ser desfeita.')) {
+async function deleteTrash(id) {
+  if (
+    !(await confirmDialog(
+      '',
+      'Excluir permanentemente este item da lixeira? Esta ação não pode ser desfeita.',
+    ))
+  ) {
     return;
   }
   db.trash = db.trash.filter((x) => x.trashId !== id);
@@ -952,7 +1229,98 @@ function hasPendingPush() {
   }
 }
 
+function mergeDb(local, cloud) {
+  local = local || blank();
+  cloud = cloud || blank();
+  const result = { ...blank(), ...local };
+  const deletedMap = new Map();
+  for (const t of [...(local.deleted || []), ...(cloud.deleted || [])]) {
+    const key = t.type + ':' + t.id;
+    const existing = deletedMap.get(key);
+    if (!existing || (t.deletedAt || '') > (existing.deletedAt || '')) {
+      deletedMap.set(key, t);
+    }
+  }
+  result.deleted = Array.from(deletedMap.values());
+  if (result.deleted.length > 5000) {
+    result.deleted = result.deleted.slice(result.deleted.length - 5000);
+  }
+  const tombstoneTime = (type, id) => {
+    const t = result.deleted.find((x) => x.type === type && x.id === id);
+    return t ? t.deletedAt || '' : '';
+  };
+  const isDeleted = (type, id, updatedAt) => {
+    const t = tombstoneTime(type, id);
+    if (!t) {
+      return false;
+    }
+    return t > (updatedAt || '');
+  };
+
+  const types = ['applications', 'cycles', 'weights'];
+  for (const type of types) {
+    const localArr = Array.isArray(local[type]) ? local[type] : [];
+    const cloudArr = Array.isArray(cloud[type]) ? cloud[type] : [];
+    const byId = new Map();
+    for (const r of [...localArr, ...cloudArr]) {
+      const id = r.id;
+      const existing = byId.get(id);
+      const rTime = r.updatedAt || '';
+      if (!existing) {
+        byId.set(id, r);
+      } else {
+        const eTime = existing.updatedAt || '';
+        if (rTime > eTime) {
+          byId.set(id, r);
+        }
+      }
+    }
+    const merged = [];
+    for (const [id, r] of byId) {
+      if (isDeleted(type, id, r.updatedAt)) {
+        continue;
+      }
+      merged.push(r);
+    }
+    result[type] = merged;
+  }
+
+  const trashMap = new Map();
+  for (const t of [...(local.trash || []), ...(cloud.trash || [])]) {
+    if (!trashMap.has(t.trashId)) {
+      trashMap.set(t.trashId, t);
+    }
+  }
+  result.trash = Array.from(trashMap.values());
+
+  result.compoundCatalog = uniqueCompoundNames([
+    ...(local.compoundCatalog || []),
+    ...(cloud.compoundCatalog || []),
+  ]);
+
+  const remMap = new Map();
+  for (const r of [...(local.reminders || []), ...(cloud.reminders || [])]) {
+    if (!remMap.has(r.id)) {
+      remMap.set(r.id, r);
+    }
+  }
+  result.reminders = Array.from(remMap.values());
+
+  if (local.goal !== null && local.goal !== undefined) {
+    result.goal = local.goal;
+  } else if (cloud.goal !== null && cloud.goal !== undefined) {
+    result.goal = cloud.goal;
+  } else {
+    result.goal = null;
+  }
+
+  return result;
+}
+
 function scheduleCloudSync() {
+  if (loadError) {
+    return;
+  }
   if (!supabaseClient || !supabaseUser) {
     return;
   }
@@ -963,14 +1331,24 @@ function scheduleCloudSync() {
   syncTimer = setTimeout(pushToCloud, 800);
 }
 
-// Ao abrir ou voltar para o app: envia a alteração local ainda não enviada
-// (para não perder nada) e depois se alinha com a nuvem.
 async function syncWithCloud() {
+  if (loadError) {
+    return;
+  }
   if (!supabaseClient || !supabaseUser) {
     return;
   }
   if (hasPendingPush()) {
-    await pushToCloud();
+    const ok = await pushToCloud();
+    if (!ok) {
+      supabaseSyncStatus = 'Alterações pendentes';
+      supabaseSyncError =
+        'Há alterações locais ainda não enviadas. Elas foram mantidas neste aparelho.';
+      if (tab === 'configuracoes') {
+        render();
+      }
+      return;
+    }
   }
   await pullFromCloud({ replaceLocal: true });
 }
@@ -989,14 +1367,44 @@ function setupCloudResumeSync() {
 }
 
 async function pushToCloud() {
+  if (loadError) {
+    return false;
+  }
   if (!supabaseClient || !supabaseUser) {
-    return;
+    return false;
   }
   try {
     supabaseSyncStatus = 'Sincronizando...';
     supabaseSyncError = '';
     if (tab === 'configuracoes') {
       render();
+    }
+    // Trava extra: se o banco local estiver vazio e a nuvem tiver registros,
+    // pede confirmação antes de enviar (evita apagar a nuvem acidentalmente).
+    if (localRecordCount() === 0) {
+      // verificação rápida da nuvem
+      try {
+        const { data } = await supabaseClient
+          .from('user_data')
+          .select('data')
+          .eq('user_id', supabaseUser.id)
+          .maybeSingle();
+        const cloudCount =
+          (data?.data?.applications?.length || 0) + (data?.data?.cycles?.length || 0);
+        if (cloudCount > 0) {
+          const ok = await confirmDialog(
+            '',
+            'O aparelho está vazio, mas a nuvem tem registros. Enviar este estado vazio apagará a nuvem. Continuar?',
+          );
+          if (!ok) {
+            supabaseSyncStatus = 'Alterações pendentes';
+            supabaseSyncError = '';
+            return false;
+          }
+        }
+      } catch {
+        /* ignora falha na verificação prévia */
+      }
     }
     const payload = {
       user_id: supabaseUser.id,
@@ -1013,16 +1421,20 @@ async function pushToCloud() {
           ? 'A tabela user_data ainda não existe neste projeto Supabase.'
           : error.message;
       console.warn('Erro ao salvar no Supabase:', error.message);
+      return false;
     } else {
       supabaseSyncStatus = 'Sincronizado';
       markCloudSynced();
       clearPendingPush();
+      return true;
     }
   } catch {
     supabaseSyncStatus = 'Offline';
-  }
-  if (tab === 'configuracoes') {
-    render();
+    return false;
+  } finally {
+    if (tab === 'configuracoes') {
+      render();
+    }
   }
 }
 
@@ -1041,6 +1453,9 @@ function localRecordCount() {
 }
 
 async function pullFromCloud({ replaceLocal = false } = {}) {
+  if (loadError) {
+    return;
+  }
   if (!supabaseClient || !supabaseUser) {
     return;
   }
@@ -1068,14 +1483,58 @@ async function pullFromCloud({ replaceLocal = false } = {}) {
 
     const cloudDb = data?.data;
     if (cloudDb && typeof cloudDb === 'object' && Array.isArray(cloudDb.applications)) {
+      // Valida os dados da nuvem antes de aplicar.
+      let valid = false;
+      try {
+        validateBackup({ ...blank(), ...cloudDb });
+        valid = true;
+      } catch {
+        valid = false;
+      }
+      if (!valid) {
+        supabaseSyncStatus = 'Erro ao carregar';
+        supabaseSyncError = 'Os dados da nuvem não passaram na verificação.';
+        if (tab === 'configuracoes') {
+          render();
+        }
+        return;
+      }
       // Baixa da nuvem quando este aparelho ainda não tem registros ou quando o
       // chamador pede a substituição (entrar na conta, voltar ao app, sincronizar agora).
       if (replaceLocal || localRecordCount() === 0) {
-        db = { ...db, ...cloudDb };
+        try {
+          const prior = localStorage.getItem(KEY);
+          if (prior !== null) {
+            localStorage.setItem(KEY + '-pre-cloud-pull', prior);
+          }
+        } catch {
+          /* ignora */
+        }
+        const merged = mergeDb(db, cloudDb);
+        // valida resultado
+        try {
+          validateBackup(merged);
+        } catch {
+          supabaseSyncStatus = 'Erro ao carregar';
+          supabaseSyncError = 'Os dados da nuvem não passaram na verificação.';
+          if (tab === 'configuracoes') {
+            render();
+          }
+          return;
+        }
+        db = merged;
         if (typeof localStorage !== 'undefined') {
           localStorage.setItem(KEY, JSON.stringify(db));
         }
         clearPendingPush();
+        // envia resultado mesclado se diferir da nuvem
+        try {
+          if (JSON.stringify(merged) !== JSON.stringify(cloudDb)) {
+            await pushToCloud();
+          }
+        } catch {
+          /* ignora */
+        }
         render();
       }
     } else if (localRecordCount() > 0) {
@@ -1097,15 +1556,17 @@ async function handleSupabaseAuth(mode, email, password) {
     initSupabase();
   }
   if (!supabaseClient) {
-    alert('Não foi possível iniciar a conexão com a nuvem. Verifique a internet e tente de novo.');
+    showToast(
+      'Não foi possível iniciar a conexão com a nuvem. Verifique a internet e tente de novo.',
+    );
     return;
   }
   if (!email || !password) {
-    alert('Preencha e-mail e senha.');
+    showToast('Preencha e-mail e senha.');
     return;
   }
   if (password.length < 6) {
-    alert('A senha precisa ter pelo menos 6 caracteres.');
+    showToast('A senha precisa ter pelo menos 6 caracteres.');
     return;
   }
   try {
@@ -1117,7 +1578,7 @@ async function handleSupabaseAuth(mode, email, password) {
       if (error) {
         supabaseSyncStatus = '';
         supabaseSyncError = error.message;
-        alert('Erro ao criar conta: ' + error.message);
+        showToast('Erro ao criar conta: ' + error.message);
         render();
         return;
       }
@@ -1127,7 +1588,7 @@ async function handleSupabaseAuth(mode, email, password) {
         await pullFromCloud();
         await pushToCloud();
       } else {
-        alert(
+        showToast(
           'Conta criada. Confirme o e-mail enviado pelo Supabase e depois toque em "Já tenho conta".',
         );
       }
@@ -1136,7 +1597,7 @@ async function handleSupabaseAuth(mode, email, password) {
       if (error) {
         supabaseSyncStatus = '';
         supabaseSyncError = error.message;
-        alert('Falha ao entrar: ' + error.message);
+        showToast('Falha ao entrar: ' + error.message);
         render();
         return;
       }
@@ -1147,7 +1608,7 @@ async function handleSupabaseAuth(mode, email, password) {
   } catch (e) {
     supabaseSyncStatus = '';
     supabaseSyncError = e.message;
-    alert('Erro de conexão: ' + e.message);
+    showToast('Erro de conexão: ' + e.message);
     render();
   }
 }
@@ -1159,6 +1620,53 @@ async function handleSupabaseSignOut() {
     supabaseSyncStatus = '';
     supabaseSyncError = '';
     render();
+  }
+}
+
+async function handlePasswordReset() {
+  const email = await promptDialog({
+    title: 'Recuperar senha',
+    text: 'Digite o e-mail da sua conta:',
+  });
+  if (!email) {
+    return;
+  }
+  try {
+    const { error } = await supabaseClient.auth.resetPasswordForEmail(email);
+    if (error) {
+      showToast('Erro: ' + error.message, 'error');
+      return;
+    }
+    showToast('Enviamos um link de recuperação para o seu e-mail.');
+  } catch (e) {
+    showToast('Erro: ' + e.message, 'error');
+  }
+}
+
+async function deleteCloudData() {
+  if (!supabaseUser) {
+    return;
+  }
+  const ok = await confirmDialog(
+    'Excluir dados da nuvem',
+    'Isto apaga a cópia na nuvem. Os dados deste aparelho permanecem. Continuar?',
+  );
+  if (!ok) {
+    return;
+  }
+  try {
+    const { error } = await supabaseClient
+      .from('user_data')
+      .delete()
+      .eq('user_id', supabaseUser.id);
+    if (error) {
+      showToast('Erro ao excluir: ' + error.message, 'error');
+      return;
+    }
+    clearPendingPush();
+    showToast('Dados da nuvem excluídos.');
+  } catch (e) {
+    showToast('Erro: ' + e.message, 'error');
   }
 }
 
@@ -1174,7 +1682,7 @@ function cloudSyncPanel() {
     supabaseSyncError
       ? `<p class="muted"><strong>Último erro:</strong> ${esc(supabaseSyncError)}</p>`
       : ''
-  }<div class="row actions">${button('Sincronizar agora', 'cloud-sync', '', 'primary')}${button('Sair da conta', 'cloud-logout')}</div></div>`;
+  }<div class="row actions">${button('Sincronizar agora', 'cloud-sync', '', 'primary')}${button('Sair da conta', 'cloud-logout')}${button('Esqueci minha senha', 'cloud-reset-password')}${button('Excluir meus dados da nuvem', 'cloud-delete-data', '', 'danger')}</div></div>`;
 }
 
 function dataPage() {
@@ -1182,7 +1690,7 @@ function dataPage() {
     ['applications', 'cycles'].includes(t.type),
   );
   const names = { applications: 'Aplicação', cycles: 'Ciclo' };
-  return `<h1>Ajustes</h1>${cloudSyncPanel()}<div class="panel"><h2>Backup</h2><p class="muted" id="backupStatus">${backupStatusText()}</p><div class="row">${button('Baixar backup JSON', 'export-data', '', 'primary')}${button('Compartilhar', 'share-backup')}</div></div><div class="panel"><h2>Restaurar backup</h2><input type="file" id="restoreFile" accept="application/json,.json"><div class="actions">${button('Importar arquivo', 'import-data')}</div></div><div class="panel"><h2>Lixeira • ${trash.length} registro(s)</h2>${
+  return `<h1>Ajustes</h1>${cloudSyncPanel()}${extraPanels()}${encryptedBackupPanel()}<div class="panel"><h2>Backup</h2><p class="muted" id="backupStatus">${backupStatusText()}</p><div class="row">${button('Baixar backup JSON', 'export-data', '', 'primary')}${button('Compartilhar', 'share-backup')}</div></div><div class="panel"><h2>Restaurar backup</h2><input type="file" id="restoreFile" accept="application/json,.json"><div class="actions">${button('Importar arquivo', 'import-data')}</div></div><div class="panel"><h2>Lixeira • ${trash.length} registro(s)</h2>${
     trash.length
       ? trash
           .slice()
@@ -1206,7 +1714,7 @@ function downloadRawData() {
   try {
     const raw = localStorage.getItem(KEY);
     if (!raw) {
-      return alert('Não há dados locais para copiar.');
+      return showToast('Não há dados locais para copiar.');
     }
     const a = document.createElement('a'),
       u = URL.createObjectURL(new Blob([raw], { type: 'application/json' }));
@@ -1215,18 +1723,18 @@ function downloadRawData() {
     a.click();
     setTimeout(() => URL.revokeObjectURL(u), 5000);
   } catch (e) {
-    alert('Falha ao criar cópia bruta: ' + e.message);
+    showToast('Falha ao criar cópia bruta: ' + e.message);
   }
 }
 function verifyLocalData() {
   try {
     const raw = localStorage.getItem(KEY);
     if (!raw) {
-      return alert('Não há registros salvos neste navegador.');
+      return showToast('Não há registros salvos neste navegador.');
     }
     const d = JSON.parse(raw);
     validateBackup(d);
-    alert(
+    showToast(
       'Verificação concluída.\nAplicações: ' +
         d.applications.length +
         '\nCiclos: ' +
@@ -1238,7 +1746,7 @@ function verifyLocalData() {
         '\n\nA verificação não substitui o backup externo.',
     );
   } catch (e) {
-    alert(
+    showToast(
       'Atenção: os dados salvos não passaram na verificação. Não apague os dados do navegador. ' +
         e.message,
     );
@@ -1251,8 +1759,13 @@ function validateBackup(d) {
     !['applications', 'cycles', 'weights'].every((k) => Array.isArray(d[k])) ||
     (d.trash !== undefined && !Array.isArray(d.trash)) ||
     (d.compoundCatalog !== undefined && !Array.isArray(d.compoundCatalog)) ||
-    (d.reminders !== undefined && !Array.isArray(d.reminders))
+    (d.reminders !== undefined && !Array.isArray(d.reminders)) ||
+    (d.deleted !== undefined && !Array.isArray(d.deleted)) ||
+    (d.schemaVersion !== undefined && Number(d.schemaVersion) > 3)
   ) {
+    if (d && Number(d.schemaVersion) > 3) {
+      throw Error('Este backup vem de uma versão mais nova do app.');
+    }
     throw Error('Estrutura do backup inválida');
   }
   for (const r of d.reminders || []) {
@@ -1368,6 +1881,14 @@ function validateBackup(d) {
       if (t.type === 'cycles' && !CYCLE_ID_RE.test(t.item.id)) {
         throw Error('Lixeira inválida');
       }
+      if (t.linkedApplicationIds !== undefined) {
+        if (
+          !Array.isArray(t.linkedApplicationIds) ||
+          !t.linkedApplicationIds.every((x) => typeof x === 'string')
+        ) {
+          throw Error('Lixeira inválida');
+        }
+      }
       trashIds.add(t.trashId);
     }
   }
@@ -1449,11 +1970,11 @@ async function exportData() {
     const { blob, filename } = await makeBackupFile();
     downloadBackupBlob(blob, filename);
     noteBackupPrepared(filename);
-    alert(
+    showToast(
       'Backup verificado e download solicitado. Confirme no gerenciador de arquivos que ele foi salvo.',
     );
   } catch (e) {
-    alert('Backup não gerado: ' + e.message);
+    showToast('Backup não gerado: ' + e.message);
   }
 }
 function bytesToBase64(bytes) {
@@ -1466,7 +1987,7 @@ function bytesToBase64(bytes) {
 function base64ToBytes(value) {
   return Uint8Array.from(atob(value), (c) => c.charCodeAt(0));
 }
-async function deriveBackupKey(password, salt) {
+async function deriveBackupKey(password, salt, iterations = 120000) {
   const material = await crypto.subtle.importKey(
     'raw',
     new TextEncoder().encode(password),
@@ -1475,7 +1996,7 @@ async function deriveBackupKey(password, salt) {
     ['deriveKey'],
   );
   return crypto.subtle.deriveKey(
-    { name: 'PBKDF2', salt, iterations: 120000, hash: 'SHA-256' },
+    { name: 'PBKDF2', salt, iterations, hash: 'SHA-256' },
     material,
     { name: 'AES-GCM', length: 256 },
     false,
@@ -1484,14 +2005,19 @@ async function deriveBackupKey(password, salt) {
 }
 async function exportEncryptedData() {
   try {
-    const password = prompt('Defina uma senha para criptografar este backup:');
+    const password = await promptDialog({
+      title: 'Backup criptografado',
+      text: 'Defina uma senha para criptografar este backup:',
+      type: 'password',
+    });
     if (!password || password.length < 6) {
-      return alert('Use uma senha com pelo menos 6 caracteres.');
+      return showToast('Use uma senha com pelo menos 6 caracteres.');
     }
     const { blob, filename } = await makeBackupFile();
     const salt = crypto.getRandomValues(new Uint8Array(16));
     const iv = crypto.getRandomValues(new Uint8Array(12));
-    const key = await deriveBackupKey(password, salt);
+    const iterations = 600000;
+    const key = await deriveBackupKey(password, salt, iterations);
     const cipher = await crypto.subtle.encrypt(
       { name: 'AES-GCM', iv },
       key,
@@ -1503,6 +2029,7 @@ async function exportEncryptedData() {
       encrypted: true,
       algorithm: 'AES-256-GCM',
       kdf: 'PBKDF2-SHA-256',
+      iterations,
       salt: bytesToBase64(salt),
       iv: bytesToBase64(iv),
       data: bytesToBase64(new Uint8Array(cipher)),
@@ -1512,26 +2039,34 @@ async function exportEncryptedData() {
       new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }),
       encryptedName,
     );
-    alert('Backup criptografado gerado. Guarde a senha separadamente.');
+    showToast('Backup criptografado gerado. Guarde a senha separadamente.');
   } catch (e) {
-    alert('Backup criptografado não gerado: ' + e.message);
+    showToast('Backup criptografado não gerado: ' + e.message);
   }
 }
 async function importEncryptedData() {
   const file = $('restoreFile').files[0];
   if (!file) {
-    return alert('Selecione um arquivo criptografado.');
+    return showToast('Selecione um arquivo criptografado.');
   }
   try {
     const payload = JSON.parse(await file.text());
     if (!payload.encrypted || payload.algorithm !== 'AES-256-GCM') {
       throw Error('Arquivo criptografado inválido');
     }
-    const password = prompt('Digite a senha deste backup:');
+    const password = await promptDialog({
+      title: 'Backup criptografado',
+      text: 'Digite a senha deste backup:',
+      type: 'password',
+    });
     if (!password) {
       return;
     }
-    const key = await deriveBackupKey(password, base64ToBytes(payload.salt));
+    const key = await deriveBackupKey(
+      password,
+      base64ToBytes(payload.salt),
+      payload.iterations || 120000,
+    );
     const plain = await crypto.subtle.decrypt(
       { name: 'AES-GCM', iv: base64ToBytes(payload.iv) },
       key,
@@ -1540,18 +2075,19 @@ async function importEncryptedData() {
     const obj = JSON.parse(new TextDecoder().decode(plain));
     validateBackup(obj.data);
     if (
-      !confirm(
+      !(await confirmDialog(
+        '',
         `Backup descriptografado: ${obj.data.applications.length} aplicações, ${obj.data.cycles.length} ciclos e ${obj.data.weights.length} pesagens. Substituir os dados atuais?`,
-      )
+      ))
     ) {
       return;
     }
     localStorage.setItem(KEY + '-pre-restore', JSON.stringify(db));
     db = { ...blank(), ...obj.data };
     save();
-    alert('Backup criptografado restaurado.');
+    showToast('Backup criptografado restaurado.');
   } catch {
-    alert('Não foi possível abrir o backup criptografado. Verifique a senha e o arquivo.');
+    showToast('Não foi possível abrir o backup criptografado. Verifique a senha e o arquivo.');
   }
 }
 async function shareBackup() {
@@ -1561,13 +2097,13 @@ async function shareBackup() {
     if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
       await navigator.share({ files: [file], title: 'Backup Peptide Manager' });
       noteBackupPrepared(filename);
-      alert(
+      showToast(
         'Compartilhamento concluído ou encaminhado. Verifique no Google Drive se o arquivo foi salvo.',
       );
     } else {
       downloadBackupBlob(blob, filename);
       noteBackupPrepared(filename);
-      alert(
+      showToast(
         'Compartilhamento de arquivos não disponível aqui. O download foi solicitado. Envie o arquivo manualmente ao Google Drive.',
       );
     }
@@ -1575,13 +2111,13 @@ async function shareBackup() {
     if (e.name === 'AbortError') {
       return;
     }
-    alert('Não foi possível preparar ou compartilhar: ' + e.message);
+    showToast('Não foi possível preparar ou compartilhar: ' + e.message);
   }
 }
 async function importData() {
   const file = $('restoreFile').files[0];
   if (!file) {
-    return alert('Selecione um arquivo JSON.');
+    return showToast('Selecione um arquivo JSON.');
   }
   try {
     if (file.size > 15 * 1024 * 1024) {
@@ -1609,7 +2145,7 @@ async function importData() {
       integrity = 'SHA-256 conferido com sucesso.';
     }
     const summary = `${integrity}\nAplicações: ${obj.data.applications.length}\nCiclos: ${obj.data.cycles.length}\nPesagens: ${obj.data.weights.length}\nLixeira: ${(obj.data.trash || []).length}\n\nA restauração substitui os registros atuais. Deseja continuar?`;
-    if (!confirm(summary)) {
+    if (!(await confirmDialog('', summary))) {
       return;
     }
     const old = db;
@@ -1621,15 +2157,22 @@ async function importData() {
       }
       localStorage.setItem(KEY, JSON.stringify(incoming));
       db = incoming;
+      markPendingPush();
+      scheduleCloudSync();
       render();
       syncNav();
-      alert('Backup restaurado e validado.');
-    } catch {
+      showToast(
+        'Backup restaurado e validado.' +
+          (supabaseUser
+            ? '\n\nA restauração também substituirá a cópia na nuvem quando a sincronização ocorrer.'
+            : ''),
+      );
+    } catch (e) {
       db = old;
       throw Error('Falha ao gravar os dados. Os registros anteriores foram mantidos.');
     }
   } catch (e) {
-    alert('Não foi possível importar: ' + e.message);
+    showToast('Não foi possível importar: ' + e.message);
   }
 }
 
@@ -1657,7 +2200,7 @@ function reportSet() {
   const from = $('reportFrom').value,
     to = $('reportTo').value;
   if (from && to && from > to) {
-    alert('A data inicial não pode ser posterior à final.');
+    showToast('A data inicial não pode ser posterior à final.');
     return;
   }
   reportFrom = from;
@@ -1753,7 +2296,7 @@ function exportReportCSV(kind) {
   setTimeout(() => URL.revokeObjectURL(a.href), 5000);
 }
 
-function handleAction(e) {
+async function handleAction(e) {
   const btn =
     e.target && typeof e.target.closest === 'function'
       ? e.target.closest('button[data-action]')
@@ -1842,13 +2385,23 @@ function handleAction(e) {
       break;
     case 'rename-compound':
       if (id) {
-        renameCompound(id, prompt('Novo nome do composto:', id));
+        renameCompound(
+          id,
+          await promptDialog({
+            title: 'Renomear composto',
+            text: 'Novo nome do composto:',
+            value: id,
+          }),
+        );
       }
       break;
     case 'remove-compound-name':
       if (
         id &&
-        confirm('Remover este nome das sugestões? Os registros existentes não serão alterados.')
+        (await confirmDialog(
+          '',
+          'Remover este nome das sugestões? Os registros existentes não serão alterados.',
+        ))
       ) {
         removeCompoundName(id);
       }
@@ -1962,6 +2515,12 @@ function handleAction(e) {
     case 'cloud-logout':
       handleSupabaseSignOut();
       break;
+    case 'cloud-reset-password':
+      handlePasswordReset();
+      break;
+    case 'cloud-delete-data':
+      deleteCloudData();
+      break;
   }
 }
 function setupVisualEffects() {
@@ -2001,6 +2560,96 @@ if (typeof location !== 'undefined' && location.search) {
   if (VALID_TABS.includes(startTab)) {
     tab = startTab;
   }
+}
+
+// Preserva rascunho do formulário em edição
+if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
+  document.addEventListener('input', (e) => {
+    const t = e.target;
+    if (!t || !t.name) {
+      return;
+    }
+    if (t.closest && t.closest('#appForm')) {
+      if (!appDraft) {
+        appDraft = { id: editing || null };
+      }
+      if (t.name === 'date') {
+        appDraft.date = t.value;
+      }
+      if (t.name === 'time') {
+        appDraft.time = t.value;
+      }
+      if (t.name === 'cycleId') {
+        appDraft.cycleId = t.value;
+      }
+      if (t.name === 'notes') {
+        appDraft.notes = t.value;
+      }
+    }
+  });
+}
+// Delegação de eventos (substitui handlers inline)
+if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
+  document.addEventListener('input', (e) => {
+    const t = e.target;
+    if (!t || !t.dataset) {
+      return;
+    }
+    if (t.dataset.filter === 'apps') {
+      setApplicationFilter(t.value);
+    } else if (t.dataset.filter === 'catalog') {
+      catalogFilter = t.value;
+      render();
+    } else if (t.dataset.compound) {
+      const i = Number(t.dataset.index);
+      if (compounds[i]) {
+        compounds[i][t.dataset.compound] = t.value;
+      }
+    }
+  });
+  document.addEventListener('change', (e) => {
+    const t = e.target;
+    if (!t || !t.dataset) {
+      return;
+    }
+    if (t.dataset.change === 'history-compound') {
+      historyCompound = t.value;
+      render();
+    } else if (t.dataset.compound) {
+      const i = Number(t.dataset.index);
+      if (compounds[i]) {
+        compounds[i][t.dataset.compound] = t.value;
+      }
+    }
+  });
+  document.addEventListener('submit', (e) => {
+    const form = e.target;
+    if (!form || !form.dataset || !form.dataset.form) {
+      return;
+    }
+    e.preventDefault();
+    if (form.dataset.form === 'app') {
+      submitApp(e);
+    } else if (form.dataset.form === 'cycle') {
+      submitCycle(e);
+    }
+  });
+  document.addEventListener('focusout', (e) => {
+    const t = e.target;
+    if (!t || !t.dataset || !t.dataset.compoundBlur) {
+      return;
+    }
+    const i = Number(t.dataset.index);
+    const last = lastCompoundEntry(t.value);
+    if (last && compounds[i] && !compounds[i].dose) {
+      compounds[i].dose = last.dose;
+      compounds[i].unit = last.unit;
+      const list = $('compoundList');
+      if (list) {
+        list.innerHTML = compoundFields();
+      }
+    }
+  });
 }
 render();
 syncNav();
