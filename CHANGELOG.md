@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## 2.33
+
+- **Relatórios:** as tabelas de Aplicações e Ciclos ficam uma abaixo da outra, ocupando toda a
+  largura, e cada uma passa a ser uma seção recolhível com seta, igual ao histórico por composto.
+
 ## 2.32
 
 - **Aplicações:** no celular, a busca vem antes do histórico e o histórico por composto fica dobrado

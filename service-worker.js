@@ -1,4 +1,4 @@
-const CACHE_VERSION = '2.32';
+const CACHE_VERSION = '2.33';
 const CACHE_NAME = 'peptide-manager-shell-v' + CACHE_VERSION;
 const ASSETS = [
   './',

@@ -9,14 +9,14 @@ compostos e não substitui orientação profissional.
 
 - Fontes: <https://github.com/RCX96/Pepitide-Manager>
 - App: <https://rcx96.github.io/Pepitide-Manager/>
-- Versão atual: 2.32
+- Versão atual: 2.33
 
 ## O que faz
 
 - **Aplicações:** data, horário, ciclo vinculado, compostos por seringa e observações.
 - **Ciclos:** início, fim, pausas e retomadas; linha do tempo de progresso e agrupamento de ciclos finalizados.
 - **Início:** bloco "Hoje" com data por extenso, registros do dia, atalho rápido de repetição e calendário mensal/semanal.
-- **Relatórios:** gráficos de resumo visual (aplicações por semana em SVG e barras por composto), filtros por período e ciclo, exportação CSV e impressão/PDF.
+- **Relatórios:** gráficos de resumo visual (aplicações por semana em SVG e barras por composto), filtros por período e ciclo, exportação CSV e impressão/PDF; tabelas de aplicações e ciclos empilhadas, em largura total e recolhíveis.
 - **Aparência e temas:** suporte a tema escuro, claro e automático com seletor em Ajustes e tipografia Inter local.
 - **Ajustes:** backup JSON com checksum SHA-256 de corrupção (não comprova autenticidade),
   restauração validada, lixeira e diagnóstico de integridade.
@@ -172,7 +172,7 @@ configurado em `js/state.js`.
 
 - `index.html` exibe a versão no rodapé e carrega `js/main.js`/`styles.css` com `?v=<versão>`.
 - Cada versão publicada recebe uma tag e uma release no GitHub (`v2.4`, por exemplo).
-- O cache do service worker usa o mesmo número (`peptide-manager-shell-v2.32`); ao publicar,
+- O cache do service worker usa o mesmo número (`peptide-manager-shell-v2.33`); ao publicar,
   atualize `CACHE_VERSION` em `service-worker.js` e o `?v=` em `index.html`. O app mostra
   “Nova versão disponível” quando a versão nova assume o controle.
 

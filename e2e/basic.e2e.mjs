@@ -115,3 +115,59 @@ test('tabelas de relatórios usam a largura da página no desktop', async ({ pag
   const tables = await page.locator('.report-tables').boundingBox();
   expect(tables.width).toBeGreaterThan(700);
 });
+
+test('tabelas de relatórios ficam empilhadas, largas e recolhíveis', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.addInitScript(() => {
+    const now = new Date().toISOString();
+    localStorage.setItem(
+      'peptide-manager-v1',
+      JSON.stringify({
+        applications: [
+          {
+            id: 'a1b2',
+            date: '2026-11-22',
+            time: '08:00',
+            cycleId: 'c1d2',
+            notes: '',
+            compounds: [{ name: 'Exemplo', dose: 1, unit: 'mg' }],
+            updatedAt: now,
+          },
+        ],
+        cycles: [
+          {
+            id: 'c1d2',
+            name: 'Ciclo exemplo',
+            start: '2026-11-01',
+            end: '2026-11-30',
+            status: 'active',
+            notes: '',
+            pauses: [],
+            updatedAt: now,
+          },
+        ],
+        weights: [],
+        goal: null,
+        trash: [],
+        compoundCatalog: [],
+        reminders: [],
+        deleted: [],
+        schemaVersion: 3,
+      }),
+    );
+  });
+  await page.goto('/?tab=relatorios');
+  const sections = page.locator('details.report-section');
+  await expect(sections).toHaveCount(2);
+  const apps = await sections.nth(0).boundingBox();
+  const cycles = await sections.nth(1).boundingBox();
+  expect(apps.y).toBeLessThan(cycles.y);
+  expect(apps.width).toBeGreaterThan(700);
+  expect(cycles.width).toBeGreaterThan(700);
+  const table = sections.nth(0).locator('table');
+  await expect(table).toBeVisible();
+  await sections.nth(0).locator('summary').click();
+  await expect(table).toBeHidden();
+  await sections.nth(0).locator('summary').click();
+  await expect(table).toBeVisible();
+});

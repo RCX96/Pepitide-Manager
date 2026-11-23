@@ -1093,7 +1093,29 @@ footer {
 
 .report-tables {
   display: grid;
+  grid-template-columns: 1fr;
   gap: var(--space-4);
+}
+
+.report-tables > .report-section {
+  margin-bottom: 0;
+}
+
+.report-section > summary {
+  cursor: pointer;
+  margin-bottom: var(--space-3);
+  color: var(--text-strong);
+  font-size: var(--fs-lg);
+  font-weight: 600;
+}
+
+.report-section > summary::marker {
+  color: var(--accent);
+}
+
+.report-section > summary:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .export-actions {
@@ -1305,7 +1327,6 @@ footer {
   }
   #app[data-tab='relatorios'] > .report-tables {
     grid-area: tables;
-    grid-template-columns: 1fr 1fr;
   }
   .chart-block + .chart-block h2 {
     margin-top: 0;

@@ -218,14 +218,14 @@ export function reportsLegacy() {
   </div>
   ${chartsHTML}
   <div class="report-tables">
-    <div class="panel">
-      <h2>Aplicações</h2>
+    <details class="panel report-section" open>
+      <summary>Aplicações</summary>
       ${reportTable(['Data', 'Hora', 'Ciclo', 'Compostos e doses', 'Observações'], reportAppRows(apps))}
-    </div>
-    <div class="panel">
-      <h2>Ciclos</h2>
+    </details>
+    <details class="panel report-section" open>
+      <summary>Ciclos</summary>
       ${reportTable(['Nome', 'Início', 'Fim', 'Estado', 'Dias ativos', 'Aplicações vinculadas'], reportCycleRows(cycles))}
-    </div>
+    </details>
   </div>`;
 }
 export function reports() {
