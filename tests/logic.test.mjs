@@ -864,3 +864,37 @@ test('setLock altera o código quando o atual está correto', async () => {
   await t.setLock();
   assert.equal(await t.verifyLock('novocodigo'), true);
 });
+
+test('restaurar da lixeira sobrevive à mesclagem com a nuvem', async () => {
+  const t = await loadApp();
+  t.dialogHooks = t.dialogHooks || {};
+  t.dialogHooks.confirm = async () => true;
+  const antigo = {
+    id: 'app-lixeira',
+    date: '2026-11-01',
+    time: '08:00',
+    site: '',
+    cycleId: null,
+    notes: '',
+    compounds: [{ name: 'Exemplo', dose: 1, unit: 'mg' }],
+    updatedAt: '2026-11-01T00:00:00.000Z',
+  };
+  const base = t.blank();
+  base.deleted = [{ type: 'applications', id: antigo.id, deletedAt: '2026-11-20T00:00:00.000Z' }];
+  base.trash = [
+    {
+      trashId: 'tr1',
+      type: 'applications',
+      deletedAt: '2026-11-20T00:00:00.000Z',
+      item: JSON.parse(JSON.stringify(antigo)),
+    },
+  ];
+  t.updateDb(base);
+  await t.restoreTrash('tr1');
+  assert.equal(t.db.applications.length, 1);
+  assert.equal(t.db.deleted.some((m) => m.id === antigo.id), false);
+  const cloud = t.blank();
+  cloud.applications = [JSON.parse(JSON.stringify(antigo))];
+  const merged = t.mergeDb(t.db, cloud);
+  assert.equal(merged.applications.some((a) => a.id === antigo.id), true);
+});

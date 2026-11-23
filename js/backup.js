@@ -20,13 +20,17 @@ export async function restoreTrash(id) {
     showToast('Já existe um registro com o mesmo identificador.');
     return;
   }
+  const now = new Date().toISOString();
+  item.updatedAt = now;
   db[type].push(item);
   db.trash = db.trash.filter((x) => x.trashId !== id);
+  db.deleted = (db.deleted || []).filter((mark) => !(mark.type === type && mark.id === item.id));
   if (type === 'cycles' && Array.isArray(entry.linkedApplicationIds)) {
     for (const appId of entry.linkedApplicationIds) {
       const app = db.applications.find((a) => a.id === appId);
       if (app && (app.cycleId === null || app.cycleId === undefined)) {
         app.cycleId = item.id;
+        app.updatedAt = now;
       }
     }
   }

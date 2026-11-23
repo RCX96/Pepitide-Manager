@@ -502,6 +502,7 @@ export function confirmDelete(type, id) {
       db.applications.forEach((a) => {
         if (a.cycleId === id) {
           a.cycleId = null;
+          a.updatedAt = new Date().toISOString();
         }
       });
     }
