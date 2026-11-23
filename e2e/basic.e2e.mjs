@@ -1,6 +1,8 @@
 
 async function seedBackup(page) {
   await page.addInitScript(() => {
+    if (sessionStorage.getItem('__test_seed')) return;
+    sessionStorage.setItem('__test_seed', '1');
     const now = new Date().toISOString();
     localStorage.setItem(
       'peptide-manager-v1',
@@ -40,7 +42,7 @@ async function seedBackup(page) {
     );
   });
 }
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures.mjs';
 
 test('abre a tela inicial e mostra o calendário', async ({ page }) => {
   await page.goto('/');
@@ -456,4 +458,42 @@ test('exporta e restaura um backup criptografado', async ({ page }) => {
     JSON.parse(localStorage.getItem('peptide-manager-v1')).applications.length,
   );
   expect(salvo).toBe(1);
+});
+
+test('duplica uma aplicação abrindo o popup', async ({ page }) => {
+  await seedBackup(page);
+  await page.goto('/?tab=aplicacoes');
+  await page.getByRole('button', { name: 'Duplicar' }).click();
+  const dialog = page.locator('dialog#appFormDialog');
+  await expect(dialog).toBeVisible();
+  await expect(dialog.locator('#compoundName0')).toHaveValue('Exemplo');
+  await dialog.locator('select[name="cycleId"]').selectOption({ label: 'Ciclo backup' });
+  await dialog.getByRole('button', { name: /Salvar/ }).click();
+  const total = await page.evaluate(
+    () => JSON.parse(localStorage.getItem('peptide-manager-v1')).applications.length,
+  );
+  expect(total).toBe(2);
+});
+
+test('exclui e restaura uma aplicação pela lixeira', async ({ page }) => {
+  await seedBackup(page);
+  await page.goto('/?tab=aplicacoes');
+  await page.getByRole('button', { name: 'Excluir' }).click();
+  await page.locator('#confirmYes').click();
+  await expect(page.getByText('Exemplo (1 mg)')).toHaveCount(0);
+  await page.goto('/?tab=configuracoes');
+  await page.getByRole('button', { name: 'Restaurar' }).click();
+  await page.locator('dialog [data-ok]').click();
+  await page.goto('/?tab=aplicacoes');
+  await expect(page.getByText('Exemplo (1 mg)')).toBeVisible();
+});
+
+test('troca o tema e mantém a escolha após recarregar', async ({ page }) => {
+  await page.goto('/?tab=configuracoes');
+  await page.getByRole('button', { name: 'Claro' }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+  await page.reload();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+  await page.getByRole('button', { name: 'Automático' }).click();
+  await expect(page.locator('html')).not.toHaveAttribute('data-theme');
 });
