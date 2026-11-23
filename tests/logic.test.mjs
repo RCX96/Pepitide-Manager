@@ -63,6 +63,9 @@ for (const n of ${JSON.stringify(STATE_LETTERS)}) {
 api.cloudHooks = sync.cloudHooks;
 api.dialogHooks = ui.dialogHooks;
 api.__el = (id) => document.getElementById(id);
+api.__setStorage = (k, v) => localStorage.setItem(k, v);
+api.__getStorage = (k) => localStorage.getItem(k);
+api.__removeStorage = (k) => localStorage.removeItem(k);
 globalThis.__app = api;
 `;
 
@@ -104,6 +107,8 @@ async function loadApp(initialData = null) {
     navigator: {},
     window: { addEventListener() {} },
     crypto: webcrypto,
+    btoa: (s) => Buffer.from(s, 'binary').toString('base64'),
+    atob: (s) => Buffer.from(s, 'base64').toString('binary'),
     URL,
     Blob,
     File,
@@ -767,4 +772,45 @@ test('importData restaura um backup válido', async () => {
   await t.importData();
   assert.equal(t._getStored().applications.length, 1);
   assert.equal(t._getStored().applications[0].id, 'app-import');
+});
+
+test('verifyLock migra o código do formato antigo', async () => {
+  const t = await loadApp();
+  t.__setStorage('peptide-manager-lock-v1', await t.hashText('123456'));
+  assert.equal(await t.verifyLock('123456'), true);
+  assert.equal(t.__getStorage('peptide-manager-lock-v2') !== null, true);
+  assert.equal(t.__getStorage('peptide-manager-lock-v1'), null);
+});
+
+test('verifyLock recusa código errado no formato antigo', async () => {
+  const t = await loadApp();
+  t.__setStorage('peptide-manager-lock-v1', await t.hashText('123456'));
+  assert.equal(await t.verifyLock('654321'), false);
+  assert.equal(t.__getStorage('peptide-manager-lock-v2'), null);
+});
+
+test('verifyLock aceita o formato novo', async () => {
+  const t = await loadApp();
+  const salt = webcrypto.getRandomValues(new Uint8Array(16));
+  const hash = await t.deriveLockHash('abcdef', salt, 1000);
+  t.__setStorage(
+    'peptide-manager-lock-v2',
+    JSON.stringify({ salt: t.bytesToBase64(salt), iterations: 1000, hash }),
+  );
+  assert.equal(await t.verifyLock('abcdef'), true);
+  assert.equal(await t.verifyLock('outra'), false);
+});
+
+test('verifyLock prioriza o formato novo e apaga o antigo', async () => {
+  const t = await loadApp();
+  const salt = webcrypto.getRandomValues(new Uint8Array(16));
+  const hash = await t.deriveLockHash('abcdef', salt, 1000);
+  t.__setStorage(
+    'peptide-manager-lock-v2',
+    JSON.stringify({ salt: t.bytesToBase64(salt), iterations: 1000, hash }),
+  );
+  t.__setStorage('peptide-manager-lock-v1', await t.hashText('123456'));
+  assert.equal(await t.verifyLock('123456'), false);
+  assert.equal(await t.verifyLock('abcdef'), true);
+  assert.equal(t.__getStorage('peptide-manager-lock-v1'), null);
 });

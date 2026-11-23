@@ -30,36 +30,53 @@ export function getLockData() {
   }
 }
 
+export function hasLock() {
+  return Boolean(localStorage.getItem(LOCK_KEY) || localStorage.getItem(LEGACY_LOCK_KEY));
+}
+
+async function migrateLegacyLock(code) {
+  if (!crypto?.subtle) {
+    return;
+  }
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const iterations = 600000;
+  const hash = await deriveLockHash(code, salt, iterations);
+  localStorage.setItem(
+    LOCK_KEY,
+    JSON.stringify({ salt: bytesToBase64(salt), iterations, hash, migrated: true }),
+  );
+  localStorage.removeItem(LEGACY_LOCK_KEY);
+}
+
 export async function verifyLock(code) {
   const data = getLockData();
-  if (!data) {
-    return false;
-  }
-  // migration from v1
   const legacy = localStorage.getItem(LEGACY_LOCK_KEY);
-  if (legacy && !data.migrated) {
-    // accept legacy hash once
-    let legacyHash = legacy;
-    if (crypto?.subtle) {
-      legacyHash = await hashText(code);
+  if (data) {
+    if (!crypto?.subtle) {
+      return false;
     }
-    if (legacyHash === legacy) {
-      // migrate
-      const salt = crypto.getRandomValues(new Uint8Array(16));
-      const iterations = 600000;
-      const hash = await deriveLockHash(code, salt, iterations);
-      localStorage.setItem(
-        LOCK_KEY,
-        JSON.stringify({ salt: bytesToBase64(salt), iterations, hash, migrated: true }),
-      );
+    const salt = base64ToBytes(data.salt);
+    const hash = await deriveLockHash(code, salt, data.iterations || 600000);
+    if (hash !== data.hash) {
+      return false;
+    }
+    if (legacy) {
       localStorage.removeItem(LEGACY_LOCK_KEY);
-      return true;
     }
+    return true;
+  }
+  if (!legacy) {
     return false;
   }
-  const salt = base64ToBytes(data.salt);
-  const hash = await deriveLockHash(code, salt, data.iterations || 600000);
-  return hash === data.hash;
+  const candidates = [bytesToBase64(new TextEncoder().encode(code))];
+  if (crypto?.subtle) {
+    candidates.push(await hashText(code));
+  }
+  if (!candidates.includes(legacy)) {
+    return false;
+  }
+  await migrateLegacyLock(code);
+  return true;
 }
 
 export async function setLock() {
