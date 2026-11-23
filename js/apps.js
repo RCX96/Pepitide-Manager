@@ -176,7 +176,7 @@ export function applicationListHTML() {
 export function applications() {
   const a = editing ? db.applications.find((x) => x.id === editing) : appDraft;
   const mode = editing ? 'Editar' : a && a._isCopy === true ? 'Nova (cópia)' : 'Nova';
-  return `<h1>Aplicações</h1><div class="panel"><h2>${mode} aplicação</h2><form id="appForm" data-form="app"><div class="two"><div><label for="appDate">Data</label><input id="appDate" name="date" type="date" required value="${a?.date || today()}"></div><div><label for="appTime">Horário (opcional)</label><input id="appTime" name="time" type="time" value="${a?.time || ''}"></div></div><label for="appCycle">Ciclo obrigatório</label><select id="appCycle" name="cycleId" required><option value="">Selecione um ciclo</option>${db.cycles
+  return `<h1>Aplicações</h1><div class="panel app-form-panel"><h2>${mode} aplicação</h2><form id="appForm" data-form="app"><div class="two"><div><label for="appDate">Data</label><input id="appDate" name="date" type="date" required value="${a?.date || today()}"></div><div><label for="appTime">Horário (opcional)</label><input id="appTime" name="time" type="time" value="${a?.time || ''}"></div></div><label for="appCycle">Ciclo obrigatório</label><select id="appCycle" name="cycleId" required><option value="">Selecione um ciclo</option>${db.cycles
     .filter((c) => CYCLE_ID_RE.test(c.id))
     .map(
       (c) =>
@@ -184,7 +184,7 @@ export function applications() {
     )
     .join(
       '',
-    )}</select>${compoundNameList()}<div id="compoundList">${compoundFields()}</div>${button('+ Adicionar composto', 'add-compound')}<label for="appNotes">Observações</label><textarea id="appNotes" name="notes" placeholder="Observações opcionais">${esc(a?.notes || '')}</textarea><div class="row actions"><button class="primary" type="submit">${a ? 'Salvar alterações' : 'Salvar aplicação'}</button>${a ? button('Cancelar', 'cancel-app') : ''}</div></form></div><div class="panel"><h2>Histórico de aplicações</h2><div id="applicationList">${applicationListHTML()}</div></div>`;
+    )}</select>${compoundNameList()}<div id="compoundList">${compoundFields()}</div>${button('+ Adicionar composto', 'add-compound')}<label for="appNotes">Observações</label><textarea id="appNotes" name="notes" placeholder="Observações opcionais">${esc(a?.notes || '')}</textarea><div class="row actions"><button class="primary" type="submit">${a ? 'Salvar alterações' : 'Salvar aplicação'}</button>${a ? button('Cancelar', 'cancel-app') : ''}</div></form></div><div class="panel history-panel"><h2>Histórico de aplicações</h2><div id="applicationList">${applicationListHTML()}</div></div>`;
 }
 
 export function submitApp(e) {

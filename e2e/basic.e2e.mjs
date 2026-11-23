@@ -79,3 +79,39 @@ test('mostra e esconde o aviso de offline', async ({ page }) => {
   await page.context().setOffline(false);
   await expect(page.locator('#offlineBanner')).toBeHidden();
 });
+
+test('busca vem antes do histórico de aplicações no celular', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/?tab=aplicacoes');
+  const search = await page.locator('.quick-filter').boundingBox();
+  const history = await page.locator('.history-panel').boundingBox();
+  const compound = await page.locator('.compound-history-panel').boundingBox();
+  expect(search.y).toBeLessThan(history.y);
+  expect(history.y).toBeLessThan(compound.y);
+});
+
+test('formulário e consultas ficam em colunas no desktop', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto('/?tab=aplicacoes');
+  const form = await page.locator('.app-form-panel').boundingBox();
+  const search = await page.locator('.quick-filter').boundingBox();
+  const history = await page.locator('.history-panel').boundingBox();
+  expect(form.x).toBeLessThan(history.x);
+  expect(search.x).toBeGreaterThan(form.x);
+  expect(search.y).toBeLessThan(history.y);
+});
+
+test('relatórios mostram resumo, filtros, gráficos e tabelas nessa ordem', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/?tab=relatorios');
+  const y = async (selector) => (await page.locator(selector).boundingBox()).y;
+  expect(await y('.report-metrics')).toBeLessThan(await y('.report-filters'));
+  expect(await y('.report-tables')).toBeGreaterThan(await y('.report-filters'));
+});
+
+test('tabelas de relatórios usam a largura da página no desktop', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto('/?tab=relatorios');
+  const tables = await page.locator('.report-tables').boundingBox();
+  expect(tables.width).toBeGreaterThan(700);
+});

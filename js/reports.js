@@ -44,7 +44,7 @@ export function reportSet() {
 
 export function reportTable(headers, rows) {
   return rows.length
-    ? `<div class="report-table-wrap"><table class="report-table"><thead><tr>${headers.map((h) => `<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${rows.map((r) => `<tr>${r.map((v) => `<td>${esc(v)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`
+    ? `<div class="report-table-wrap"><table class="report-table"><thead><tr>${headers.map((h) => `<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${rows.map((r) => `<tr>${r.map((v, i) => `<td data-label="${esc(headers[i])}">${esc(v)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`
     : emptyState('Nenhum registro para os filtros selecionados.');
 }
 
@@ -180,49 +180,54 @@ export function reportsLegacy() {
 
   const weekly = getWeeklyData(apps);
   const chartsHTML = apps.length
-    ? `<div class="panel">
-        <h2>Aplicações por semana</h2>
-        ${barChartSVG(weekly)}
-        <h2 style="margin-top:var(--space-4);">Aplicações por composto</h2>
-        ${compoundBarsHTML(apps)}
+    ? `<div class="panel report-charts">
+        <div class="chart-block">
+          <h2>Aplicações por semana</h2>
+          ${barChartSVG(weekly)}
+        </div>
+        <div class="chart-block">
+          <h2>Aplicações por composto</h2>
+          ${compoundBarsHTML(apps)}
+        </div>
         <p class="sr-only">Gráficos de resumo com ${apps.length} aplicações distribuídas no período.</p>
       </div>`
     : emptyState('Sem dados para o período selecionado.');
 
   return `<h1>Relatórios e exportação</h1>
+  <div class="grid report-metrics">
+    <div class="metric"><span>Aplicações</span><strong>${apps.length}</strong></div>
+    <div class="metric"><span>Ciclos no período</span><strong>${cycles.length}</strong></div>
+  </div>
   <div class="panel report-filters">
-    <h2>Filtros</h2>
+    <h2>Filtros e exportação</h2>
     <div class="two">
-      <div><label>De</label><input id="reportFrom" type="date" value="${esc(reportFrom)}"></div>
-      <div><label>Até</label><input id="reportTo" type="date" value="${esc(reportTo)}"></div>
+      <div><label for="reportFrom">De</label><input id="reportFrom" type="date" value="${esc(reportFrom)}"></div>
+      <div><label for="reportTo">Até</label><input id="reportTo" type="date" value="${esc(reportTo)}"></div>
     </div>
-    <label>Ciclo (aplicações e ciclos)</label>
+    <label for="reportCycle">Ciclo (aplicações e ciclos)</label>
     <select id="reportCycle">${choices}</select>
     <div class="row actions">
       <button type="button" class="primary" data-action="report-set">Aplicar filtros</button>
       <button type="button" data-action="report-clear">Limpar filtros</button>
     </div>
-  </div>
-  <div class="grid">
-    <div class="metric"><span>Aplicações</span><strong>${apps.length}</strong></div>
-    <div class="metric"><span>Ciclos no período</span><strong>${cycles.length}</strong></div>
-  </div>
-  <div class="panel report-tools">
-    <button type="button" class="primary" data-action="report-csv" data-id="applications">CSV aplicações</button>
-    <button type="button" data-action="report-csv" data-id="cycles">CSV ciclos</button>
-    <button type="button" data-action="print">Imprimir / Salvar PDF</button>
+    <div class="row actions export-actions">
+      <button type="button" data-action="report-csv" data-id="applications">CSV aplicações</button>
+      <button type="button" data-action="report-csv" data-id="cycles">CSV ciclos</button>
+      <button type="button" data-action="print">Imprimir / Salvar PDF</button>
+    </div>
   </div>
   ${chartsHTML}
-  <div class="panel">
-    <h2>Aplicações</h2>
-    ${reportTable(['Data', 'Hora', 'Ciclo', 'Compostos e doses', 'Observações'], reportAppRows(apps))}
-  </div>
-  <div class="panel">
-    <h2>Ciclos</h2>
-    ${reportTable(['Nome', 'Início', 'Fim', 'Estado', 'Dias ativos', 'Aplicações vinculadas'], reportCycleRows(cycles))}
+  <div class="report-tables">
+    <div class="panel">
+      <h2>Aplicações</h2>
+      ${reportTable(['Data', 'Hora', 'Ciclo', 'Compostos e doses', 'Observações'], reportAppRows(apps))}
+    </div>
+    <div class="panel">
+      <h2>Ciclos</h2>
+      ${reportTable(['Nome', 'Início', 'Fim', 'Estado', 'Dias ativos', 'Aplicações vinculadas'], reportCycleRows(cycles))}
+    </div>
   </div>`;
 }
-
 export function reports() {
   return reportsLegacy();
 }

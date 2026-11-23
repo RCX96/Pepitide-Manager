@@ -1,5 +1,14 @@
 # CHANGELOG
 
+## 2.32
+
+- **Aplicações:** no celular, a busca vem antes do histórico e o histórico por composto fica dobrado
+  no fim; no desktop, o formulário fica em uma coluna fixa e busca, histórico e filtro por composto
+  na outra.
+- **Relatórios:** o resumo vai ao topo, filtros e exportação ficam no mesmo painel, os gráficos ficam
+  lado a lado no desktop e as tabelas ocupam a largura da página.
+- **Tabelas no celular:** cada linha passa a ser um cartão com o nome do campo, sem colunas cortadas.
+
 ## 2.31
 
 - **Navegação:** a aba ativa passa a constar na URL (`?tab=`), o botão Voltar do aparelho troca de

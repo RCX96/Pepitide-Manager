@@ -1077,6 +1077,129 @@ footer {
   }
 }
 
+/* ── POSICIONAMENTO DAS TELAS DE DADOS ───────────────────── */
+.report-charts {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.chart-block h2 {
+  margin-top: 0;
+}
+
+.chart-block + .chart-block h2 {
+  margin-top: var(--space-4);
+}
+
+.report-tables {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.export-actions {
+  margin-top: var(--space-3);
+}
+
+.compound-history-panel summary {
+  cursor: pointer;
+  font-weight: 700;
+  color: var(--text-strong);
+  font-size: var(--fs-md);
+}
+
+.compound-history-panel summary:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.compound-history-panel label,
+.compound-history-panel select {
+  margin-top: var(--space-2);
+}
+
+@media (max-width: 999px) {
+  #app[data-tab='aplicacoes'],
+  #app[data-tab='relatorios'] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+  }
+
+  #app[data-tab='aplicacoes'] > h1,
+  #app[data-tab='relatorios'] > h1 {
+    order: 0;
+  }
+
+  #app[data-tab='aplicacoes'] > .app-form-panel {
+    order: 1;
+  }
+  #app[data-tab='aplicacoes'] > .quick-filter {
+    order: 2;
+  }
+  #app[data-tab='aplicacoes'] > .history-panel {
+    order: 3;
+  }
+  #app[data-tab='aplicacoes'] > .compound-history-panel {
+    order: 4;
+  }
+
+  #app[data-tab='relatorios'] > .report-metrics {
+    order: 1;
+    margin-bottom: 0;
+  }
+  #app[data-tab='relatorios'] > .report-filters {
+    order: 2;
+  }
+  #app[data-tab='relatorios'] > .report-charts {
+    order: 3;
+  }
+  #app[data-tab='relatorios'] > .report-tables {
+    order: 4;
+  }
+}
+
+@media (max-width: 700px) {
+  .report-table,
+  .report-table tbody,
+  .report-table tr,
+  .report-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .report-table thead {
+    display: none;
+  }
+
+  .report-table tr {
+    margin-bottom: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+  }
+
+  .report-table td {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-2);
+    padding: 3px 0;
+    border: 0;
+  }
+
+  .report-table td::before {
+    content: attr(data-label);
+    flex: 0 0 118px;
+    color: var(--muted);
+    font-size: var(--fs-label);
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+
+  .report-table td:empty::after {
+    content: '—';
+  }
+}
+
 /* ── TELAS GRANDES (DESKTOP > 1000PX) ───────────────────── */
 @media (min-width: 1000px) {
   #bottom-nav {
@@ -1122,27 +1245,70 @@ footer {
     padding-bottom: var(--space-5);
   }
 
-  /* Grid de duas colunas */
+  /* Formulário fixo à esquerda; consultas à direita */
   #app[data-tab='aplicacoes'] {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: minmax(340px, 0.9fr) minmax(0, 1.1fr);
+    grid-template-areas:
+      'title title'
+      'form search'
+      'form history'
+      'form compound';
     gap: var(--space-4);
     align-items: start;
   }
 
   #app[data-tab='aplicacoes'] > h1 {
-    grid-column: 1 / -1;
+    grid-area: title;
+  }
+  #app[data-tab='aplicacoes'] > .app-form-panel {
+    grid-area: form;
+    position: sticky;
+    top: 80px;
+  }
+  #app[data-tab='aplicacoes'] > .quick-filter {
+    grid-area: search;
+  }
+  #app[data-tab='aplicacoes'] > .history-panel {
+    grid-area: history;
+  }
+  #app[data-tab='aplicacoes'] > .compound-history-panel {
+    grid-area: compound;
   }
 
+  /* Resumo no topo, filtros ao lado dos gráficos e tabelas em largura total */
   #app[data-tab='relatorios'] {
     display: grid;
-    grid-template-columns: 320px 1fr;
+    grid-template-columns: minmax(300px, 0.85fr) minmax(0, 1.15fr);
+    grid-template-areas:
+      'title title'
+      'metrics metrics'
+      'filters charts'
+      'tables tables';
     gap: var(--space-4);
     align-items: start;
   }
 
   #app[data-tab='relatorios'] > h1 {
-    grid-column: 1 / -1;
+    grid-area: title;
+  }
+  #app[data-tab='relatorios'] > .report-metrics {
+    grid-area: metrics;
+    margin-bottom: 0;
+  }
+  #app[data-tab='relatorios'] > .report-filters {
+    grid-area: filters;
+  }
+  #app[data-tab='relatorios'] > .report-charts {
+    grid-area: charts;
+    grid-template-columns: 1fr 1fr;
+  }
+  #app[data-tab='relatorios'] > .report-tables {
+    grid-area: tables;
+    grid-template-columns: 1fr 1fr;
+  }
+  .chart-block + .chart-block h2 {
+    margin-top: 0;
   }
 }
 
