@@ -814,3 +814,53 @@ test('verifyLock prioriza o formato novo e apaga o antigo', async () => {
   assert.equal(await t.verifyLock('abcdef'), true);
   assert.equal(t.__getStorage('peptide-manager-lock-v1'), null);
 });
+
+test('painel de proteção reconhece o código no formato novo', async () => {
+  const t = await loadApp();
+  t.updateTab('configuracoes');
+  t.__setStorage('peptide-manager-lock-v2', '{}');
+  const html = t.extraPanels();
+  assert.match(html, /Alterar código local/);
+  assert.match(html, /Remover código local/);
+  assert.doesNotMatch(html, /Criar código local/);
+});
+
+test('hasLock considera as duas chaves', async () => {
+  const t = await loadApp();
+  assert.equal(t.hasLock(), false);
+  t.__setStorage('peptide-manager-lock-v2', '{}');
+  assert.equal(t.hasLock(), true);
+  t.__removeStorage('peptide-manager-lock-v2');
+  t.__setStorage('peptide-manager-lock-v1', 'abc');
+  assert.equal(t.hasLock(), true);
+});
+
+async function criarLockAtual(t, code) {
+  const salt = webcrypto.getRandomValues(new Uint8Array(16));
+  const hash = await t.deriveLockHash(code, salt, 1000);
+  t.__setStorage(
+    'peptide-manager-lock-v2',
+    JSON.stringify({ salt: t.bytesToBase64(salt), iterations: 1000, hash }),
+  );
+}
+
+test('setLock exige o código atual antes de alterar', async () => {
+  const t = await loadApp();
+  t.dialogHooks = t.dialogHooks || {};
+  await criarLockAtual(t, 'antigo');
+  const respostas = ['errado', 'novocodigo', 'novocodigo'];
+  t.dialogHooks.prompt = async () => respostas.shift();
+  await t.setLock();
+  assert.equal(await t.verifyLock('antigo'), true);
+  assert.equal(await t.verifyLock('novocodigo'), false);
+});
+
+test('setLock altera o código quando o atual está correto', async () => {
+  const t = await loadApp();
+  t.dialogHooks = t.dialogHooks || {};
+  await criarLockAtual(t, 'antigo');
+  const respostas = ['antigo', 'novocodigo', 'novocodigo'];
+  t.dialogHooks.prompt = async () => respostas.shift();
+  await t.setLock();
+  assert.equal(await t.verifyLock('novocodigo'), true);
+});

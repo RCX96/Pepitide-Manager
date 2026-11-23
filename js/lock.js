@@ -84,6 +84,18 @@ export async function setLock() {
     showToast('O bloqueio exige HTTPS ou ambiente seguro.');
     return;
   }
+  const changing = hasLock();
+  if (changing) {
+    const current = await promptDialog({
+      title: 'Código atual',
+      text: 'Digite o código atual antes de alterar:',
+      type: 'password',
+    });
+    if (!(await verifyLock(current || ''))) {
+      showToast('Código incorreto.');
+      return;
+    }
+  }
   const first = await promptDialog({
     title: 'Código local',
     text: 'Crie um código com pelo menos 6 caracteres:',
@@ -107,7 +119,7 @@ export async function setLock() {
   const hash = await deriveLockHash(first, salt, iterations);
   localStorage.setItem(LOCK_KEY, JSON.stringify({ salt: bytesToBase64(salt), iterations, hash }));
   updateUnlocked(true);
-  showToast('Código local criado.');
+  showToast(changing ? 'Código local alterado.' : 'Código local criado.');
   render();
 }
 
@@ -122,6 +134,7 @@ export async function removeLock() {
     return;
   }
   localStorage.removeItem(LOCK_KEY);
+  localStorage.removeItem(LEGACY_LOCK_KEY);
   showToast('Proteção removida.');
   render();
 }
