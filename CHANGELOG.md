@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## 2.35
+
+- **Início:** o botão "Registrar aplicação" agora abre o formulário de nova aplicação em um popup,
+  com fechar pelo X, pelo fundo ou após salvar.
+- **Aplicações no desktop:** busca, histórico e histórico por composto ocupam toda a largura do
+  conteúdo, nessa ordem; o formulário fica compacto acima deles.
+
 ## 2.34
 
 - **Aplicações:** o histórico virou uma seção recolhível com seta, como o histórico por composto.

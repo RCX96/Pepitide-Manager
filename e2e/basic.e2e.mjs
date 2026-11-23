@@ -90,14 +90,16 @@ test('busca vem antes do histórico de aplicações no celular', async ({ page }
   expect(history.y).toBeLessThan(compound.y);
 });
 
-test('formulário e consultas ficam em colunas no desktop', async ({ page }) => {
+test('consultas de aplicações ocupam a largura no desktop', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto('/?tab=aplicacoes');
   const form = await page.locator('.app-form-panel').boundingBox();
   const search = await page.locator('.quick-filter').boundingBox();
   const history = await page.locator('.history-panel').boundingBox();
-  expect(form.x).toBeLessThan(history.x);
-  expect(search.x).toBeGreaterThan(form.x);
+  expect(form.y).toBeLessThan(search.y);
+  expect(search.width).toBeGreaterThan(800);
+  expect(history.width).toBeGreaterThan(800);
+  expect(search.x).toBe(history.x);
   expect(search.y).toBeLessThan(history.y);
 });
 
@@ -236,4 +238,54 @@ test('gráfico semanal se estende alinhado aos filtros no desktop', async ({ pag
   const compounds = await page.locator('.chart-block').nth(1).boundingBox();
   expect(weekly.width).toBeGreaterThan(filters.width);
   expect(weekly.y).toBeLessThan(compounds.y);
+});
+
+test('botão da página inicial abre o formulário em popup', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.addInitScript(() => {
+    const now = new Date().toISOString();
+    localStorage.setItem(
+      'peptide-manager-v1',
+      JSON.stringify({
+        applications: [],
+        cycles: [
+          {
+            id: 'c1d2',
+            name: 'Ciclo popup',
+            start: '2026-11-01',
+            end: '2026-11-30',
+            status: 'active',
+            notes: '',
+            pauses: [],
+            updatedAt: now,
+          },
+        ],
+        weights: [],
+        goal: null,
+        trash: [],
+        compoundCatalog: [],
+        reminders: [],
+        deleted: [],
+        schemaVersion: 3,
+      }),
+    );
+  });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Registrar aplicação' }).click();
+  const dialog = page.locator('dialog#appFormDialog');
+  await expect(dialog).toBeVisible();
+  await expect(dialog.locator('#appForm')).toBeVisible();
+  await dialog.locator('[data-close]').click();
+  await expect(dialog).toBeHidden();
+
+  await page.getByRole('button', { name: 'Registrar aplicação' }).click();
+  await dialog.locator('#compoundName0').fill('Popup');
+  await dialog.locator('#compoundDose0').fill('1');
+  await dialog.locator('select[name="cycleId"]').selectOption({ label: 'Ciclo popup' });
+  await dialog.getByRole('button', { name: 'Salvar aplicação' }).click();
+  await expect(dialog).toBeHidden();
+  const saved = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem('peptide-manager-v1')).applications,
+  );
+  expect(saved.some((a) => a.compounds.some((c) => c.name === 'Popup'))).toBe(true);
 });

@@ -524,7 +524,7 @@ export function todayBlock() {
   }
 
   const primaryBtn = activeCycles.length
-    ? button('Registrar aplicação', 'set-tab', 'aplicacoes', 'primary')
+    ? button('Registrar aplicação', 'new-app', '', 'primary')
     : button('Criar ciclo', 'set-tab', 'ciclos', 'primary');
   const repeatBtn = lastApp ? button('Repetir último registro', 'quick-register') : '';
 

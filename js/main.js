@@ -1,6 +1,7 @@
 import {
   addCompound,
   compoundFields,
+  openAppForm,
   copyApp,
   editApp,
   quickRegister,
@@ -75,6 +76,9 @@ export async function handleAction(e) {
   const action = btn.getAttribute('data-action');
   const id = btn.getAttribute('data-id');
   switch (action) {
+    case 'new-app':
+      openAppForm();
+      break;
     case 'set-tab':
       if (id) {
         setTab(id);

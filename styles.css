@@ -988,6 +988,33 @@ dialog::backdrop {
   backdrop-filter: blur(4px);
 }
 
+dialog.app-form-dialog {
+  position: relative;
+  width: min(720px, calc(100vw - 32px));
+  max-width: none;
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+}
+
+.app-form-dialog .app-form-panel {
+  margin-bottom: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.app-form-dialog .dialog-close {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  font-size: 22px;
+  line-height: 1;
+}
+
 .toast {
   position: fixed;
   top: calc(var(--space-3) + env(safe-area-inset-top, 0px));
@@ -1284,35 +1311,25 @@ footer {
     padding-bottom: var(--space-5);
   }
 
-  /* Formulário fixo à esquerda; consultas à direita */
+  /* Consultas em largura total; formulário compacto no topo */
   #app[data-tab='aplicacoes'] {
     display: grid;
-    grid-template-columns: minmax(340px, 0.9fr) minmax(0, 1.1fr);
-    grid-template-areas:
-      'title title'
-      'form search'
-      'form history'
-      'form compound';
+    grid-template-columns: minmax(0, 1fr);
     gap: var(--space-4);
     align-items: start;
   }
 
-  #app[data-tab='aplicacoes'] > h1 {
-    grid-area: title;
-  }
   #app[data-tab='aplicacoes'] > .app-form-panel {
-    grid-area: form;
-    position: sticky;
-    top: 80px;
+    max-width: 680px;
   }
   #app[data-tab='aplicacoes'] > .quick-filter {
-    grid-area: search;
+    order: 2;
   }
   #app[data-tab='aplicacoes'] > .history-panel {
-    grid-area: history;
+    order: 3;
   }
   #app[data-tab='aplicacoes'] > .compound-history-panel {
-    grid-area: compound;
+    order: 4;
   }
 
   /* Resumo no topo, filtros ao lado dos gráficos e tabelas em largura total */
