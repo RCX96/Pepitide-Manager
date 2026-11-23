@@ -140,7 +140,12 @@ export function emptyState(text, btnLabel = '', action = '', id = '') {
   </div>`;
 }
 
+export const dialogHooks = { confirm: null, prompt: null };
+
 export function confirmDialog(title, text) {
+  if (dialogHooks.confirm) {
+    return dialogHooks.confirm(title, text);
+  }
   return new Promise((resolve) => {
     const dlg = document.createElement('dialog');
     dlg.setAttribute('aria-labelledby', 'confirmTitle');
@@ -162,7 +167,11 @@ export function confirmDialog(title, text) {
   });
 }
 
-export function promptDialog({ title, text, type = 'text', value = '' } = {}) {
+export function promptDialog(options = {}) {
+  if (dialogHooks.prompt) {
+    return dialogHooks.prompt(options);
+  }
+  const { title, text, type = 'text', value = '' } = options;
   return new Promise((resolve) => {
     const dlg = document.createElement('dialog');
     dlg.setAttribute('aria-labelledby', 'promptTitle');

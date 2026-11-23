@@ -61,6 +61,8 @@ for (const n of ${JSON.stringify(STATE_LETTERS)}) {
   Object.defineProperty(api, n, { get: () => state[n], configurable: true });
 }
 api.cloudHooks = sync.cloudHooks;
+api.dialogHooks = ui.dialogHooks;
+api.__el = (id) => document.getElementById(id);
 globalThis.__app = api;
 `;
 
@@ -69,6 +71,8 @@ async function loadApp(initialData = null) {
   const makeElement = () => ({
     innerHTML: '',
     textContent: '',
+    files: [],
+    classList: { add() {}, remove() {} },
     remove() {},
     showModal() {},
     close() {},
@@ -82,6 +86,8 @@ async function loadApp(initialData = null) {
       removeItem: (k) => store.delete(k),
     },
     document: {
+      querySelector: () => null,
+      querySelectorAll: () => [],
       getElementById(id) {
         if (!elements.has(id)) elements.set(id, makeElement());
         return elements.get(id);
@@ -729,4 +735,36 @@ test('mergeDb remove registro com tombstone mais recente', async () => {
   };
   const merged = app.mergeDb(local, { applications: [], cycles: [], weights: [] });
   assert.equal(merged.applications.length, 0);
+});
+
+test('importData restaura um backup válido', async () => {
+  const t = await loadApp();
+  t.dialogHooks = t.dialogHooks || {};
+  t.dialogHooks.confirm = async () => true;
+  const data = t.blank();
+  data.applications = [
+    {
+      id: 'app-import',
+      date: '2026-11-22',
+      time: '08:00',
+      site: '',
+      cycleId: null,
+      notes: '',
+      compounds: [{ name: 'Exemplo', dose: 1, unit: 'mg' }],
+      updatedAt: new Date().toISOString(),
+    },
+  ];
+  const payload = {
+    app: 'Peptide Manager',
+    version: 2,
+    exportedAt: new Date().toISOString(),
+    integrity: { algorithm: 'SHA-256', dataHash: await t.sha256Text(JSON.stringify(data)) },
+    data,
+  };
+  const json = JSON.stringify(payload);
+  const el = t.__el('restoreFile');
+  el.files = [{ size: json.length, text: async () => json }];
+  await t.importData();
+  assert.equal(t._getStored().applications.length, 1);
+  assert.equal(t._getStored().applications[0].id, 'app-import');
 });

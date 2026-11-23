@@ -1,4 +1,4 @@
-import { BACKUP_META_KEY, CYCLE_ID_RE, KEY, db, supabaseUser, updateDb } from './state.js';
+import { BACKUP_META_KEY, CYCLE_ID_RE, KEY, blank, db, supabaseUser, updateDb } from './state.js';
 import { markPendingPush, scheduleCloudSync } from './sync.js';
 import { confirmDialog, promptDialog, render, showToast, syncNav } from './ui.js';
 import { $, base64ToBytes, bytesToBase64, esc, save, strictDate, today } from './util.js';
@@ -423,8 +423,12 @@ export async function importEncryptedData() {
     updateDb({ ...blank(), ...obj.data });
     save();
     showToast('Backup criptografado restaurado.');
-  } catch {
-    showToast('Não foi possível abrir o backup criptografado. Verifique a senha e o arquivo.');
+  } catch (e) {
+    const msg =
+      e && e.name === 'OperationError'
+        ? 'Senha incorreta ou arquivo criptografado inválido.'
+        : (e && e.message) || 'Erro desconhecido';
+    showToast('Não foi possível abrir o backup criptografado: ' + msg);
   }
 }
 
@@ -511,7 +515,7 @@ export async function importData() {
             ? '\n\nA restauração também substituirá a cópia na nuvem quando a sincronização ocorrer.'
             : ''),
       );
-    } catch (e) {
+    } catch {
       updateDb(old);
       throw Error('Falha ao gravar os dados. Os registros anteriores foram mantidos.');
     }
