@@ -113,6 +113,7 @@ async function loadApp(initialData = null) {
     Blob,
     File,
     TextEncoder,
+    TextDecoder,
     console,
     setTimeout,
     clearTimeout,
@@ -931,4 +932,67 @@ test('excluir dados da nuvem desliga a sincronização até entrar de novo', asy
   assert.equal(pushes, 0);
   await t.handleSupabaseAuth('signin', 'teste@example.com', '123456');
   assert.equal(t.__getStorage('peptide-supabase-disabled'), null);
+});
+
+async function backupCriptografado(t, senha, iterations) {
+  const data = t.blank();
+  data.applications = [
+    {
+      id: 'app-crypto',
+      date: '2026-11-22',
+      time: '',
+      site: '',
+      cycleId: null,
+      notes: '',
+      compounds: [{ name: 'Exemplo', dose: 1, unit: 'mg' }],
+      updatedAt: new Date().toISOString(),
+    },
+  ];
+  const payload = { app: 'Peptide Manager', version: 3, data };
+  const salt = webcrypto.getRandomValues(new Uint8Array(16));
+  const iv = webcrypto.getRandomValues(new Uint8Array(12));
+  const key = await t.deriveBackupKey(senha, salt, iterations);
+  const cipher = await webcrypto.subtle.encrypt(
+    { name: 'AES-GCM', iv },
+    key,
+    new TextEncoder().encode(JSON.stringify(payload)),
+  );
+  return {
+    app: 'Peptide Manager',
+    version: 3,
+    encrypted: true,
+    algorithm: 'AES-256-GCM',
+    kdf: 'PBKDF2-SHA-256',
+    iterations,
+    salt: t.bytesToBase64(salt),
+    iv: t.bytesToBase64(iv),
+    data: t.bytesToBase64(new Uint8Array(cipher)),
+  };
+}
+
+for (const iterations of [120000, 600000]) {
+  test(`importEncryptedData restaura backup com ${iterations} iterações`, async () => {
+    const t = await loadApp();
+    t.dialogHooks = t.dialogHooks || {};
+    t.dialogHooks.prompt = async () => 'senha123';
+    t.dialogHooks.confirm = async () => true;
+    const obj = await backupCriptografado(t, 'senha123', iterations);
+    const json = JSON.stringify(obj);
+    t.__el('restoreFile').files = [{ size: json.length, text: async () => json }];
+    await t.importEncryptedData();
+    assert.equal(t._getStored().applications.length, 1);
+    assert.equal(t._getStored().applications[0].id, 'app-crypto');
+  });
+}
+
+test('importEncryptedData recusa senha errada', async () => {
+  const t = await loadApp();
+  t.dialogHooks = t.dialogHooks || {};
+  t.dialogHooks.prompt = async () => 'errada';
+  t.dialogHooks.confirm = async () => true;
+  const obj = await backupCriptografado(t, 'senha123', 120000);
+  const json = JSON.stringify(obj);
+  t.__el('restoreFile').files = [{ size: json.length, text: async () => json }];
+  await t.importEncryptedData();
+  assert.equal(t._getStored().applications.length, 0);
 });
