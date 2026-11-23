@@ -9,7 +9,7 @@ compostos e não substitui orientação profissional.
 
 - Fontes: <https://github.com/RCX96/Pepitide-Manager>
 - App: <https://rcx96.github.io/Pepitide-Manager/>
-- Versão atual: 2.36
+- Versão atual: 2.37
 
 ## O que faz
 
@@ -31,6 +31,9 @@ compostos e não substitui orientação profissional.
 - Com a conta na nuvem ativa, uma cópia fica na tabela `user_data` do Supabase. O acesso é protegido
   por RLS: cada conta lê e grava apenas a própria linha.
 - Sem conta, o app funciona só neste navegador.
+- **Excluir dados da nuvem** apaga apenas a linha de dados e desliga a sincronização neste aparelho.
+  Isso não exclui a conta de login no Supabase, que exigiria uma função no servidor. Para reativar,
+  entre na conta novamente.
 - Limpar os dados do navegador apaga os registros locais. Se a conta na nuvem já estiver conectada,
   entre novamente para baixar a cópia da nuvem.
 - O conteúdo local não é criptografado em repouso, mas é possível exportar um backup
@@ -172,7 +175,7 @@ configurado em `js/state.js`.
 
 - `index.html` exibe a versão no rodapé e carrega `js/main.js`/`styles.css` com `?v=<versão>`.
 - Cada versão publicada recebe uma tag e uma release no GitHub (`v2.4`, por exemplo).
-- O cache do service worker usa o mesmo número (`peptide-manager-shell-v2.36`); ao publicar,
+- O cache do service worker usa o mesmo número (`peptide-manager-shell-v2.37`); ao publicar,
   atualize `CACHE_VERSION` em `service-worker.js` e o `?v=` em `index.html`. O app mostra
   “Nova versão disponível” quando a versão nova assume o controle.
 

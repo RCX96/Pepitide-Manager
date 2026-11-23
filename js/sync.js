@@ -1,5 +1,6 @@
 import { validateBackup } from './backup.js';
 import {
+  CLOUD_DISABLED_KEY,
   KEY,
   SUPABASE_KEY,
   SUPABASE_URL,
@@ -203,8 +204,20 @@ export function mergeDb(local, cloud) {
   return result;
 }
 
+export function isCloudSyncDisabled() {
+  return localStorage.getItem(CLOUD_DISABLED_KEY) === '1';
+}
+
+function setCloudSyncDisabled(disabled) {
+  if (disabled) {
+    localStorage.setItem(CLOUD_DISABLED_KEY, '1');
+  } else {
+    localStorage.removeItem(CLOUD_DISABLED_KEY);
+  }
+}
+
 export function scheduleCloudSync() {
-  if (loadError) {
+  if (loadError || isCloudSyncDisabled()) {
     return;
   }
   if (!supabaseClient || !supabaseUser) {
@@ -218,7 +231,7 @@ export function scheduleCloudSync() {
 }
 
 export async function syncWithCloud() {
-  if (loadError) {
+  if (loadError || isCloudSyncDisabled()) {
     return;
   }
   if (!supabaseClient || !supabaseUser) {
@@ -254,7 +267,7 @@ export function setupCloudResumeSync() {
 }
 
 export async function pushToCloud() {
-  if (loadError) {
+  if (loadError || isCloudSyncDisabled()) {
     return false;
   }
   if (!supabaseClient || !supabaseUser) {
@@ -343,7 +356,7 @@ export function localRecordCount() {
 }
 
 export async function pullFromCloud({ replaceLocal = false } = {}) {
-  if (loadError) {
+  if (loadError || isCloudSyncDisabled()) {
     return;
   }
   if (!supabaseClient || !supabaseUser) {
@@ -474,6 +487,7 @@ export async function handleSupabaseAuth(mode, email, password) {
         return;
       }
       if (data?.session?.user) {
+        setCloudSyncDisabled(false);
         updateSupabaseUser(data.session.user);
         updateSupabaseSyncStatus('Sincronizado');
         await pullFromCloud();
@@ -492,6 +506,7 @@ export async function handleSupabaseAuth(mode, email, password) {
         render();
         return;
       }
+      setCloudSyncDisabled(false);
       updateSupabaseUser(data?.user || supabaseUser);
       await pullFromCloud({ replaceLocal: true });
     }
@@ -540,7 +555,7 @@ export async function deleteCloudData() {
   }
   const ok = await confirmDialog(
     'Excluir dados da nuvem',
-    'Isto apaga a cópia na nuvem. Os dados deste aparelho permanecem. Continuar?',
+    'Isto apaga a cópia na nuvem e desliga a sincronização neste aparelho. Os dados deste aparelho permanecem. Isso não exclui a conta de login no Supabase. Continuar?',
   );
   if (!ok) {
     return;
@@ -554,8 +569,13 @@ export async function deleteCloudData() {
       showToast('Erro ao excluir: ' + error.message, 'error');
       return;
     }
+    await supabaseClient.auth.signOut();
+    updateSupabaseUser(null);
+    setCloudSyncDisabled(true);
     clearPendingPush();
-    showToast('Dados da nuvem excluídos.');
+    showToast(
+      'A cópia na nuvem foi excluída e a sincronização foi desligada neste aparelho. Seus dados continuam aqui. A conta de login no Supabase não foi excluída.',
+    );
   } catch (e) {
     showToast('Erro: ' + e.message, 'error');
   }
@@ -563,7 +583,11 @@ export async function deleteCloudData() {
 
 export function cloudSyncPanel() {
   if (!supabaseUser) {
-    return `<div class="panel"><h2>Sincronização na nuvem</h2><p class="muted">Crie sua conta uma vez. Depois disso, cada registro sobe sozinho para a nuvem e abre no celular e no computador.</p><label for="cloudEmail">E-mail</label><input type="email" id="cloudEmail" placeholder="seu@email.com" autocomplete="email"><label for="cloudPassword">Senha (mínimo 6 caracteres)</label><input type="password" id="cloudPassword" placeholder="Sua senha" autocomplete="current-password"><div class="row actions">${button('Criar conta', 'cloud-signup', '', 'primary')}${button('Já tenho conta', 'cloud-login')}</div><p class="muted">Primeiro acesso? Use <strong>Criar conta</strong>. Depois, use <strong>Já tenho conta</strong> com o mesmo e-mail e senha.</p>${
+    const aviso =
+      localStorage.getItem(CLOUD_DISABLED_KEY) === '1'
+        ? '<p class="warning">A cópia na nuvem foi excluída e a sincronização foi desligada neste aparelho. Seus dados continuam aqui. Entre na conta novamente para reativar.</p>'
+        : '';
+    return `<div class="panel"><h2>Sincronização na nuvem</h2>${aviso}<p class="muted">Crie sua conta uma vez. Depois disso, cada registro sobe sozinho para a nuvem e abre no celular e no computador.</p><label for="cloudEmail">E-mail</label><input type="email" id="cloudEmail" placeholder="seu@email.com" autocomplete="email"><label for="cloudPassword">Senha (mínimo 6 caracteres)</label><input type="password" id="cloudPassword" placeholder="Sua senha" autocomplete="current-password"><div class="row actions">${button('Criar conta', 'cloud-signup', '', 'primary')}${button('Já tenho conta', 'cloud-login')}</div><p class="muted">Primeiro acesso? Use <strong>Criar conta</strong>. Depois, use <strong>Já tenho conta</strong> com o mesmo e-mail e senha.</p>${
       supabaseSyncError
         ? `<p class="muted"><strong>Último erro:</strong> ${esc(supabaseSyncError)}</p>`
         : ''

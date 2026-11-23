@@ -1,3 +1,45 @@
+
+async function seedBackup(page) {
+  await page.addInitScript(() => {
+    const now = new Date().toISOString();
+    localStorage.setItem(
+      'peptide-manager-v1',
+      JSON.stringify({
+        applications: [
+          {
+            id: 'a1b2',
+            date: '2026-11-22',
+            time: '08:00',
+            site: '',
+            cycleId: 'c1d2',
+            notes: 'Registro de teste',
+            compounds: [{ name: 'Exemplo', dose: 1, unit: 'mg' }],
+            updatedAt: now,
+          },
+        ],
+        cycles: [
+          {
+            id: 'c1d2',
+            name: 'Ciclo backup',
+            start: '2026-11-01',
+            end: '2026-11-30',
+            status: 'active',
+            notes: '',
+            pauses: [],
+            updatedAt: now,
+          },
+        ],
+        weights: [],
+        goal: null,
+        trash: [],
+        compoundCatalog: [],
+        reminders: [],
+        deleted: [],
+        schemaVersion: 3,
+      }),
+    );
+  });
+}
 import { test, expect } from '@playwright/test';
 
 test('abre a tela inicial e mostra o calendário', async ({ page }) => {
@@ -370,4 +412,48 @@ test('nenhuma aba registra violação de CSP no console', async ({ page }) => {
     .first()
     .evaluate((el) => getComputedStyle(el).backgroundColor);
   expect(cor).not.toBe('rgba(0, 0, 0, 0)');
+});
+
+test('exporta e restaura um backup JSON', async ({ page }) => {
+  await seedBackup(page);
+  await page.goto('/?tab=configuracoes');
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    page.getByRole('button', { name: 'Baixar backup JSON' }).click(),
+  ]);
+  const arquivo = await download.path();
+  await page.evaluate(() => localStorage.clear());
+  await page.reload();
+  await page.locator('#restoreFile').setInputFiles(arquivo);
+  await page.getByRole('button', { name: 'Importar arquivo' }).click();
+  await page.locator('dialog [data-ok]').click();
+  await expect(page.getByText('Backup restaurado e validado.', { exact: false })).toBeVisible();
+  const salvo = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem('peptide-manager-v1')).applications.length,
+  );
+  expect(salvo).toBe(1);
+});
+
+test('exporta e restaura um backup criptografado', async ({ page }) => {
+  await seedBackup(page);
+  await page.goto('/?tab=configuracoes');
+  await page.getByRole('button', { name: 'Exportar criptografado' }).click();
+  await page.locator('#promptInput').fill('senha123');
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    page.locator('dialog [data-ok]').click(),
+  ]);
+  const arquivo = await download.path();
+  await page.evaluate(() => localStorage.clear());
+  await page.reload();
+  await page.locator('#restoreFile').setInputFiles(arquivo);
+  await page.getByRole('button', { name: 'Importar criptografado' }).click();
+  await page.locator('#promptInput').fill('senha123');
+  await page.locator('dialog [data-ok]').click();
+  await page.locator('dialog [data-ok]').click();
+  await expect(page.getByText('Backup criptografado restaurado.', { exact: false })).toBeVisible();
+  const salvo = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem('peptide-manager-v1')).applications.length,
+  );
+  expect(salvo).toBe(1);
 });

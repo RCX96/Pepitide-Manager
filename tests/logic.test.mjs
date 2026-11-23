@@ -898,3 +898,37 @@ test('restaurar da lixeira sobrevive à mesclagem com a nuvem', async () => {
   const merged = t.mergeDb(t.db, cloud);
   assert.equal(merged.applications.some((a) => a.id === antigo.id), true);
 });
+
+test('excluir dados da nuvem desliga a sincronização até entrar de novo', async () => {
+  const t = await loadApp();
+  t.dialogHooks = t.dialogHooks || {};
+  t.dialogHooks.confirm = async () => true;
+  let signouts = 0;
+  let pushes = 0;
+  let deletes = 0;
+  const tabela = {
+    delete: () => ({ eq: async () => { deletes += 1; return { error: null }; } }),
+    upsert: async () => { pushes += 1; return { error: null }; },
+    select: () => ({
+      eq: () => ({ maybeSingle: async () => ({ data: null, error: null }) }),
+    }),
+  };
+  t.updateSupabaseClient({
+    auth: {
+      signOut: async () => { signouts += 1; },
+      signInWithPassword: async () => ({ data: { user: { id: 'u1' } }, error: null }),
+    },
+    from: () => tabela,
+  });
+  t.updateSupabaseUser({ id: 'u1' });
+  await t.deleteCloudData();
+  assert.equal(deletes, 1);
+  assert.equal(signouts, 1);
+  assert.equal(t.__getStorage('peptide-supabase-disabled'), '1');
+  await t.syncWithCloud();
+  await t.pushToCloud();
+  t.scheduleCloudSync();
+  assert.equal(pushes, 0);
+  await t.handleSupabaseAuth('signin', 'teste@example.com', '123456');
+  assert.equal(t.__getStorage('peptide-supabase-disabled'), null);
+});

@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## 2.37
+
+- **Fase 1 do plano v2:** correções urgentes. Restauração de backup voltou a funcionar; o código
+  antigo de bloqueio destrava e é migrado; o painel de proteção mostra os botões corretos; trocar o
+  código exige o código atual; nenhum estilo inline é gerado, então a CSP não bloqueia barras nem
+  cores; restaurar da lixeira sobrevive à sincronização; excluir dados da nuvem desliga a
+  sincronização e não recria a cópia.
+- **Verificação:** testes unitários cobrem cada correção e testes de navegador cobrem console limpo e
+  exportação/restauração nos formatos normal e criptografado.
+
 ## 2.36
 
 - **Aplicações:** o formulário saiu da página e passa a abrir somente em popup. O botão "Nova

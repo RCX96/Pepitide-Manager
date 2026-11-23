@@ -120,6 +120,8 @@ export let tab = 'inicio',
       : '',
   syncTimer = null;
 
+export const CLOUD_DISABLED_KEY = 'peptide-supabase-disabled';
+
 export const LOCK_KEY = 'peptide-manager-lock-v2';
 
 export const LEGACY_LOCK_KEY = 'peptide-manager-lock-v1';
