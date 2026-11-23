@@ -6,6 +6,14 @@ export let reportFrom = '',
   reportCycle = 'all';
 
 export const KEY = 'peptide-manager-v1';
+export const THEME_KEY = 'peptide-manager-theme';
+export const STORAGE_PERSIST_KEY = 'peptide-storage-persist-requested';
+export const LOCK_ATTEMPTS_KEY = 'peptide-lock-attempts';
+export const LOCK_UNTIL_KEY = 'peptide-lock-until';
+export const SUPABASE_URL_KEY = 'peptide-supabase-url';
+export const SUPABASE_KEY_KEY = 'peptide-supabase-key';
+export const SUPABASE_LAST_SYNC_KEY = 'peptide-supabase-last-sync';
+export const PENDING_KEY = 'peptide-supabase-pending';
 
 export const BACKUP_META_KEY = 'peptide-manager-backup-meta-v2.2';
 // Chave publicável do Supabase: feita para ir no app. A proteção real é o RLS (cada conta lê só o que é dela).
@@ -115,9 +123,7 @@ export let tab = 'inicio',
   supabaseSyncStatus = '',
   supabaseSyncError = '',
   supabaseLastSync =
-    typeof localStorage !== 'undefined'
-      ? localStorage.getItem('peptide-supabase-last-sync') || ''
-      : '',
+    typeof localStorage !== 'undefined' ? localStorage.getItem(SUPABASE_LAST_SYNC_KEY) || '' : '',
   syncTimer = null;
 
 export const CLOUD_DISABLED_KEY = 'peptide-supabase-disabled';

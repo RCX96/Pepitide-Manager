@@ -11,6 +11,7 @@ import {
   db,
   historyCompound,
   loadError,
+  THEME_KEY,
   supabaseSyncStatus,
   supabaseUser,
   tab,
@@ -35,9 +36,7 @@ import {
 } from './util.js';
 
 export function getSavedTheme() {
-  return (
-    (typeof localStorage !== 'undefined' && localStorage.getItem('peptide-manager-theme')) || 'auto'
-  );
+  return (typeof localStorage !== 'undefined' && localStorage.getItem(THEME_KEY)) || 'auto';
 }
 
 export function applyTheme(theme = getSavedTheme()) {
@@ -63,7 +62,7 @@ export function applyTheme(theme = getSavedTheme()) {
 
 export function setTheme(theme) {
   if (typeof localStorage !== 'undefined') {
-    localStorage.setItem('peptide-manager-theme', theme);
+    localStorage.setItem(THEME_KEY, theme);
   }
   applyTheme(theme);
   render();

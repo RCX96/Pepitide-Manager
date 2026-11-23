@@ -2,6 +2,10 @@ import { validateBackup } from './backup.js';
 import {
   CLOUD_DISABLED_KEY,
   KEY,
+  PENDING_KEY,
+  SUPABASE_KEY_KEY,
+  SUPABASE_LAST_SYNC_KEY,
+  SUPABASE_URL_KEY,
   SUPABASE_KEY,
   SUPABASE_URL,
   blank,
@@ -27,11 +31,9 @@ import { esc, uniqueCompoundNames } from './util.js';
 
 export function getSupabaseConfig() {
   const url =
-    (typeof localStorage !== 'undefined' && localStorage.getItem('peptide-supabase-url')) ||
-    SUPABASE_URL;
+    (typeof localStorage !== 'undefined' && localStorage.getItem(SUPABASE_URL_KEY)) || SUPABASE_URL;
   const key =
-    (typeof localStorage !== 'undefined' && localStorage.getItem('peptide-supabase-key')) ||
-    SUPABASE_KEY;
+    (typeof localStorage !== 'undefined' && localStorage.getItem(SUPABASE_KEY_KEY)) || SUPABASE_KEY;
   return { url, key };
 }
 
@@ -83,8 +85,6 @@ export function initSupabase() {
     return null;
   }
 }
-
-export const PENDING_KEY = 'peptide-supabase-pending';
 
 export const cloudHooks = {};
 
@@ -347,7 +347,7 @@ export function markCloudSynced() {
     }),
   );
   if (typeof localStorage !== 'undefined') {
-    localStorage.setItem('peptide-supabase-last-sync', supabaseLastSync);
+    localStorage.getItem(SUPABASE_LAST_SYNC_KEY);
   }
 }
 

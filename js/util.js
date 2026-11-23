@@ -1,5 +1,5 @@
 import { validateBackup } from './backup.js';
-import { KEY, db, loadError } from './state.js';
+import { KEY, STORAGE_PERSIST_KEY, db, loadError } from './state.js';
 import { scheduleCloudSync } from './sync.js';
 import { render, showToast } from './ui.js';
 
@@ -23,12 +23,12 @@ export const save = () => {
     localStorage.setItem(KEY, JSON.stringify(db));
     scheduleCloudSync();
     render();
-    if (!localStorage.getItem('peptide-storage-persist-requested')) {
+    if (!localStorage.getItem(STORAGE_PERSIST_KEY)) {
       try {
         if (navigator.storage && navigator.storage.persist) {
           navigator.storage.persist().catch(() => {});
         }
-        localStorage.setItem('peptide-storage-persist-requested', '1');
+        localStorage.setItem(STORAGE_PERSIST_KEY, '1');
       } catch {
         /* ignora */
       }

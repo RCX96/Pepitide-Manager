@@ -1,4 +1,10 @@
-import { LEGACY_LOCK_KEY, LOCK_KEY, updateUnlocked } from './state.js';
+import {
+  LEGACY_LOCK_KEY,
+  LOCK_ATTEMPTS_KEY,
+  LOCK_KEY,
+  LOCK_UNTIL_KEY,
+  updateUnlocked,
+} from './state.js';
 import { promptDialog, render, showToast } from './ui.js';
 import { $, base64ToBytes, bytesToBase64, hashText } from './util.js';
 
@@ -143,23 +149,23 @@ export async function unlockApp() {
   const input = $('unlockCode');
   const code = input ? input.value : '';
   // rate limiting
-  const attempts = Number(localStorage.getItem('peptide-lock-attempts') || '0');
-  const lockUntil = Number(localStorage.getItem('peptide-lock-until') || '0');
+  const attempts = Number(localStorage.getItem(LOCK_ATTEMPTS_KEY) || '0');
+  const lockUntil = Number(localStorage.getItem(LOCK_UNTIL_KEY) || '0');
   if (Date.now() < lockUntil) {
     showToast('Muitas tentativas. Aguarde e tente novamente.');
     return;
   }
   if (await verifyLock(code)) {
-    localStorage.removeItem('peptide-lock-attempts');
-    localStorage.removeItem('peptide-lock-until');
+    localStorage.removeItem(LOCK_ATTEMPTS_KEY);
+    localStorage.removeItem(LOCK_UNTIL_KEY);
     updateUnlocked(true);
     render();
   } else {
     const next = attempts + 1;
-    localStorage.setItem('peptide-lock-attempts', String(next));
+    localStorage.setItem(LOCK_ATTEMPTS_KEY, String(next));
     if (next >= 5) {
       const wait = next >= 7 ? 5 * 60 * 1000 : next >= 6 ? 60 * 1000 : 30 * 1000;
-      localStorage.setItem('peptide-lock-until', String(Date.now() + wait));
+      localStorage.setItem(LOCK_UNTIL_KEY, String(Date.now() + wait));
     }
     showToast('Código incorreto.');
   }
