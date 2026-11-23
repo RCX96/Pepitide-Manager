@@ -9,7 +9,7 @@ compostos e não substitui orientação profissional.
 
 - Fontes: <https://github.com/RCX96/Pepitide-Manager>
 - App: <https://rcx96.github.io/Pepitide-Manager/>
-- Versão atual: 2.30
+- Versão atual: 2.31
 
 ## O que faz
 
@@ -18,8 +18,8 @@ compostos e não substitui orientação profissional.
 - **Início:** bloco "Hoje" com data por extenso, registros do dia, atalho rápido de repetição e calendário mensal/semanal.
 - **Relatórios:** gráficos de resumo visual (aplicações por semana em SVG e barras por composto), filtros por período e ciclo, exportação CSV e impressão/PDF.
 - **Aparência e temas:** suporte a tema escuro, claro e automático com seletor em Ajustes e tipografia Inter local.
-- **Ajustes:** backup JSON com verificação SHA-256, restauração validada, lixeira e diagnóstico de
-  integridade.
+- **Ajustes:** backup JSON com checksum SHA-256 de corrupção (não comprova autenticidade),
+  restauração validada, lixeira e diagnóstico de integridade.
 - **Sincronização na nuvem:** conta por e-mail e senha no Supabase; cada registro sobe sozinho e
   desce em um aparelho novo ao entrar na mesma conta, com indicador visual no cabeçalho.
 - **Catálogo de compostos:** sugestões de nomes salvos para agilizar novos registros.
@@ -132,6 +132,8 @@ service-worker.js     cache offline (network-first na navegação)
 icon-192.png          ícone
 icon-512.png          ícone
 icon-maskable-512.png ícone com margem segura (Android)
+apple-touch-icon.png  ícone para a tela inicial do iPhone
+screenshots/          capturas usadas na instalação da PWA
 tests/logic.test.mjs  testes das funções puras
 vendor/supabase.js    cliente Supabase local (sem CDN)
 ```
@@ -170,7 +172,7 @@ configurado em `js/state.js`.
 
 - `index.html` exibe a versão no rodapé e carrega `js/main.js`/`styles.css` com `?v=<versão>`.
 - Cada versão publicada recebe uma tag e uma release no GitHub (`v2.4`, por exemplo).
-- O cache do service worker usa o mesmo número (`peptide-manager-shell-v2.28`); ao publicar,
+- O cache do service worker usa o mesmo número (`peptide-manager-shell-v2.31`); ao publicar,
   atualize `CACHE_VERSION` em `service-worker.js` e o `?v=` em `index.html`. O app mostra
   “Nova versão disponível” quando a versão nova assume o controle.
 
@@ -178,4 +180,5 @@ configurado em `js/state.js`.
 
 - A sincronização não mescla alterações simultâneas entre aparelhos.
 - O conteúdo local não é criptografado, salvo no backup criptografado com senha própria.
-- Sem testes de interface automatizados (apenas testes de lógica pura).
+- Os testes de interface (Playwright) cobrem navegação, registro, busca e foco; o acesso ao
+  dispositivo físico não é automatizado.

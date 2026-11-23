@@ -1,5 +1,5 @@
 import { CYCLE_ID_RE, db, editing, updateEditing } from './state.js';
-import { button, emptyState, showToast } from './ui.js';
+import { button, clearFieldErrors, emptyState, setFieldError, showToast } from './ui.js';
 import { dateFmt, dayCount, elapsedCycle, esc, save, today, uid } from './util.js';
 
 export function cycleDetails(x) {
@@ -78,20 +78,20 @@ export function cycles() {
   <div class="panel">
     <h2>${c ? 'Editar ciclo' : 'Novo ciclo'}</h2>
     <form data-form="cycle">
-      <label>Nome</label>
-      <input name="name" required value="${esc(c?.name || '')}" placeholder="Ex.: Ciclo de novembro">
+      <label for="cycleName">Nome</label>
+      <input id="cycleName" name="name" required value="${esc(c?.name || '')}" placeholder="Ex.: Ciclo de novembro">
       <div class="two">
-        <div><label>Data de início</label><input type="date" name="start" required value="${c?.start || today()}"></div>
-        <div><label>Data de término (opcional)</label><input type="date" name="end" value="${c?.end || ''}"></div>
+        <div><label for="cycleStart">Data de início</label><input id="cycleStart" type="date" name="start" required value="${c?.start || today()}"></div>
+        <div><label for="cycleEnd">Data de término (opcional)</label><input id="cycleEnd" type="date" name="end" value="${c?.end || ''}"></div>
       </div>
-      <label>Situação</label>
-      <select name="status">
+      <label for="cycleStatus">Situação</label>
+      <select id="cycleStatus" name="status">
         <option value="active" ${!c || c.status === 'active' ? 'selected' : ''}>Em andamento</option>
         <option value="paused" ${c?.status === 'paused' ? 'selected' : ''}>Pausado</option>
         <option value="finished" ${c?.status === 'finished' ? 'selected' : ''}>Finalizado</option>
       </select>
-      <label>Observações</label>
-      <textarea name="notes">${esc(c?.notes || '')}</textarea>
+      <label for="cycleNotes">Observações</label>
+      <textarea id="cycleNotes" name="notes">${esc(c?.notes || '')}</textarea>
       <div class="row actions">
         <button type="submit" class="primary">Salvar ciclo</button>
         ${c ? button('Cancelar', 'cancel-cycle') : ''}
@@ -136,9 +136,22 @@ export function changeCycleStatus(id, status) {
 
 export function submitCycle(e) {
   e.preventDefault();
-  const f = new FormData(e.target);
+  const form = e.target;
+  clearFieldErrors(form);
+  const f = new FormData(form);
+  if (!String(f.get('name') || '').trim()) {
+    setFieldError(form, '[name="name"]', 'Informe o nome do ciclo.');
+    showToast('Informe o nome do ciclo.', 'error');
+    return;
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(f.get('start')))) {
+    setFieldError(form, '[name="start"]', 'Informe uma data de início válida.');
+    showToast('Informe uma data de início válida.', 'error');
+    return;
+  }
   if (f.get('end') && f.get('end') < f.get('start')) {
-    showToast('A data final deve ser igual ou posterior ao início.');
+    setFieldError(form, '[name="end"]', 'A data final deve ser igual ou posterior ao início.');
+    showToast('A data final deve ser igual ou posterior ao início.', 'error');
     return;
   }
   const old = editing ? db.cycles.find((x) => x.id === editing && CYCLE_ID_RE.test(x.id)) : null;

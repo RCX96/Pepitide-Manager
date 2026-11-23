@@ -10,7 +10,16 @@ import {
   updateCompounds,
   updateEditing,
 } from './state.js';
-import { button, emptyState, render, setTab, showToast } from './ui.js';
+import {
+  button,
+  clearFieldErrors,
+  emptyState,
+  focusFirstFormField,
+  render,
+  setFieldError,
+  setTab,
+  showToast,
+} from './ui.js';
 import {
   $,
   compoundNameList,
@@ -118,6 +127,7 @@ export function editApp(id) {
   updateAppDraft(null);
   updateCompounds(a.compounds.map((c) => ({ ...c })));
   render();
+  focusFirstFormField();
 }
 
 export function copyApp(id) {
@@ -179,26 +189,34 @@ export function applications() {
 
 export function submitApp(e) {
   e.preventDefault();
-  const f = new FormData(e.target);
+  const form = e.target;
+  clearFieldErrors(form);
+  const f = new FormData(form);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(String(f.get('date')))) {
-    showToast('Informe uma data válida.');
+    setFieldError(form, '[name="date"]', 'Informe uma data válida.');
+    showToast('Informe uma data válida.', 'error');
     return;
   }
-  if (
-    compounds.some(
-      (c) =>
-        !c.name.trim() ||
-        !(Number(c.dose) > 0) ||
-        !Number.isFinite(Number(c.dose)) ||
-        !['mg', 'mcg', 'mL', 'UI'].includes(c.unit),
-    )
-  ) {
-    showToast('Preencha o nome e uma dose maior que zero para cada composto.');
+  const badCompound = compounds.findIndex(
+    (c) =>
+      !c.name.trim() ||
+      !(Number(c.dose) > 0) ||
+      !Number.isFinite(Number(c.dose)) ||
+      !['mg', 'mcg', 'mL', 'UI'].includes(c.unit),
+  );
+  if (badCompound !== -1) {
+    const bad = compounds[badCompound];
+    const selector = !bad.name.trim()
+      ? `#compoundName${badCompound}`
+      : `#compoundDose${badCompound}`;
+    setFieldError(form, selector, 'Preencha o nome e uma dose maior que zero para cada composto.');
+    showToast('Preencha o nome e uma dose maior que zero para cada composto.', 'error');
     return;
   }
   const cycleId = String(f.get('cycleId') || '');
   if (!CYCLE_ID_RE.test(cycleId) || !db.cycles.some((c) => c.id === cycleId)) {
-    showToast('Selecione um ciclo válido para vincular a aplicação.');
+    setFieldError(form, '[name="cycleId"]', 'Selecione um ciclo válido para vincular a aplicação.');
+    showToast('Selecione um ciclo válido para vincular a aplicação.', 'error');
     return;
   }
   const item = {

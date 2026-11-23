@@ -85,6 +85,49 @@ export function showToast(text, type = 'info') {
   }, 4000);
 }
 
+export function clearFieldErrors(form) {
+  if (!form || !form.querySelectorAll) {
+    return;
+  }
+  form.querySelectorAll('.field-error').forEach((el) => el.remove());
+  form.querySelectorAll('[aria-invalid]').forEach((el) => el.removeAttribute('aria-invalid'));
+}
+
+export function setFieldError(form, selector, message) {
+  const field = form && form.querySelector ? form.querySelector(selector) : null;
+  if (!field) {
+    return;
+  }
+  field.setAttribute('aria-invalid', 'true');
+  const error = document.createElement('p');
+  error.className = 'field-error';
+  error.setAttribute('role', 'alert');
+  error.textContent = message;
+  field.insertAdjacentElement('afterend', error);
+  if (typeof field.focus === 'function') {
+    field.focus({ preventScroll: true });
+  }
+}
+
+export function focusFirstFormField() {
+  if (typeof window !== 'undefined' && typeof window.scrollTo === 'function') {
+    const reduce =
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    try {
+      window.scrollTo({ top: 0, behavior: reduce ? 'auto' : 'smooth' });
+    } catch {
+      window.scrollTo(0, 0);
+    }
+  }
+  const field = document.querySelector(
+    '#appForm input, #appForm select, #appForm textarea, form[data-form="cycle"] input, form[data-form="cycle"] select, form[data-form="cycle"] textarea',
+  );
+  if (field && typeof field.focus === 'function') {
+    field.focus({ preventScroll: true });
+  }
+}
+
 export function emptyState(text, btnLabel = '', action = '', id = '') {
   return `<div class="empty-state">
     <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -100,7 +143,9 @@ export function emptyState(text, btnLabel = '', action = '', id = '') {
 export function confirmDialog(title, text) {
   return new Promise((resolve) => {
     const dlg = document.createElement('dialog');
-    dlg.innerHTML = `<h2>${esc(title)}</h2><p>${esc(text)}</p><div class="row between"><button type="button" data-cancel>Cancelar</button><button type="button" class="danger" data-ok>Sim, excluir</button></div>`;
+    dlg.setAttribute('aria-labelledby', 'confirmTitle');
+    dlg.setAttribute('aria-describedby', 'confirmText');
+    dlg.innerHTML = `<h2 id="confirmTitle">${esc(title)}</h2><p id="confirmText">${esc(text)}</p><div class="row between"><button type="button" data-cancel>Cancelar</button><button type="button" class="danger" data-ok>Sim, excluir</button></div>`;
     document.body.appendChild(dlg);
     dlg.showModal();
     dlg.querySelector('[data-ok]').addEventListener('click', () => {
@@ -120,7 +165,9 @@ export function confirmDialog(title, text) {
 export function promptDialog({ title, text, type = 'text', value = '' } = {}) {
   return new Promise((resolve) => {
     const dlg = document.createElement('dialog');
-    dlg.innerHTML = `<h2>${esc(title)}</h2><p>${esc(text)}</p><input type="${type === 'password' ? 'password' : 'text'}" value="${esc(value)}" style="width:100%" /><div class="row between"><button type="button" data-cancel>Cancelar</button><button type="button" class="primary" data-ok>OK</button></div>`;
+    dlg.setAttribute('aria-labelledby', 'promptTitle');
+    dlg.setAttribute('aria-describedby', 'promptText');
+    dlg.innerHTML = `<h2 id="promptTitle">${esc(title)}</h2><p id="promptText">${esc(text)}</p><label class="sr-only" for="promptInput">${esc(title)}</label><input id="promptInput" type="${type === 'password' ? 'password' : 'text'}" value="${esc(value)}" style="width:100%" /><div class="row between"><button type="button" data-cancel>Cancelar</button><button type="button" class="primary" data-ok>OK</button></div>`;
     document.body.appendChild(dlg);
     const input = dlg.querySelector('input');
     dlg.showModal();
@@ -185,12 +232,25 @@ export function navHTML() {
 
 export const VALID_TABS = ['inicio', 'aplicacoes', 'ciclos', 'relatorios', 'configuracoes'];
 
-export function setTab(t) {
-  updateTab(VALID_TABS.includes(t) ? t : 'inicio');
+export function setTab(t, pushHistory = true) {
+  const next = VALID_TABS.includes(t) ? t : 'inicio';
+  updateTab(next);
   updateEditing(null);
   render();
   syncNav();
   animateRender(true);
+  if (
+    pushHistory &&
+    typeof history !== 'undefined' &&
+    history.pushState &&
+    typeof location !== 'undefined'
+  ) {
+    const url = new URL(location.href);
+    if (url.searchParams.get('tab') !== next) {
+      url.searchParams.set('tab', next);
+      history.pushState({ tab: next }, '', url);
+    }
+  }
 }
 
 export function syncNav() {
@@ -258,7 +318,7 @@ export function extraPanels() {
         n.toLocaleLowerCase('pt-BR').includes(catalogFilter.toLocaleLowerCase('pt-BR')),
     );
     const theme = getSavedTheme();
-    return `<div class="panel"><h2>Aparência</h2><div class="theme-picker row"><button type="button" class="${theme === 'auto' ? 'primary' : ''}" data-action="set-theme" data-id="auto">Automático</button><button type="button" class="${theme === 'dark' ? 'primary' : ''}" data-action="set-theme" data-id="dark">Escuro</button><button type="button" class="${theme === 'light' ? 'primary' : ''}" data-action="set-theme" data-id="light">Claro</button></div></div><div class="panel"><h2>Catálogo de compostos</h2><input type="search" placeholder="Filtrar catálogo" value="${esc(catalogFilter)}" data-filter="catalog"><div class="catalog-list">${names.length ? names.map((name) => `<div class="row between catalog-row"><span>${esc(name)}</span><span class="row"><button type="button" data-action="rename-compound" data-id="${esc(name)}">Renomear</button><button type="button" class="danger" data-action="remove-compound-name" data-id="${esc(name)}">Remover</button></span></div>`).join('') : emptyState('As sugestões aparecem conforme você registra.')}</div></div><div class="panel"><h2>Proteção local</h2>${localStorage.getItem('peptide-manager-lock-v1') ? button('Alterar código local', 'set-lock') + button('Remover código local', 'remove-lock') : button('Criar código local', 'set-lock', '', 'primary')}</div>`;
+    return `<div class="panel"><h2>Aparência</h2><div class="theme-picker row"><button type="button" class="${theme === 'auto' ? 'primary' : ''}" data-action="set-theme" data-id="auto">Automático</button><button type="button" class="${theme === 'dark' ? 'primary' : ''}" data-action="set-theme" data-id="dark">Escuro</button><button type="button" class="${theme === 'light' ? 'primary' : ''}" data-action="set-theme" data-id="light">Claro</button></div></div><div class="panel"><h2>Catálogo de compostos</h2><input id="catalogFilter" type="search" placeholder="Filtrar catálogo" value="${esc(catalogFilter)}" data-filter="catalog"><div class="catalog-list">${names.length ? names.map((name) => `<div class="row between catalog-row"><span>${esc(name)}</span><span class="row"><button type="button" data-action="rename-compound" data-id="${esc(name)}">Renomear</button><button type="button" class="danger" data-action="remove-compound-name" data-id="${esc(name)}">Remover</button></span></div>`).join('') : emptyState('As sugestões aparecem conforme você registra.')}</div></div><div class="panel"><h2>Proteção local</h2>${localStorage.getItem('peptide-manager-lock-v1') ? button('Alterar código local', 'set-lock') + button('Remover código local', 'remove-lock') : button('Criar código local', 'set-lock', '', 'primary')}</div>`;
   }
   return '';
 }
@@ -304,6 +364,11 @@ export function appendRendered(html) {
 }
 
 export function render() {
+  const previousFocus = typeof document !== 'undefined' ? document.activeElement : null;
+  const focusKey =
+    previousFocus && previousFocus !== document.body
+      ? previousFocus.getAttribute('data-focus-id') || previousFocus.id || ''
+      : '';
   if (!unlocked) {
     $('bottom-nav').innerHTML = '';
     $('app').innerHTML =
@@ -360,6 +425,16 @@ export function render() {
   decorateCalendarCompounds();
   syncHeader();
   syncNav();
+  if (focusKey && typeof document !== 'undefined') {
+    const target =
+      document.getElementById(focusKey) ||
+      Array.from(document.querySelectorAll('[data-focus-id]')).find(
+        (el) => el.getAttribute('data-focus-id') === focusKey,
+      );
+    if (target && typeof target.focus === 'function') {
+      target.focus({ preventScroll: true });
+    }
+  }
 }
 
 export function confirmDelete(type, id) {

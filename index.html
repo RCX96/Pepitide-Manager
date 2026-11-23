@@ -13,9 +13,15 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="icon" href="./icon-192.png" type="image/png" />
-    <link rel="stylesheet" href="./styles.css?v=2.30" />
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
+    <link rel="stylesheet" href="./styles.css?v=2.31" />
   </head>
   <body>
+    <a class="skip-link" href="#app">Pular para o conteúdo</a>
+    <div id="offlineBanner" class="offline-banner" role="status" hidden>
+      Sem conexão. Seus registros continuam salvos neste aparelho; a sincronização volta quando a
+      internet retornar.
+    </div>
     <header>
       <div class="row between header-inner">
         <div>
@@ -120,7 +126,7 @@
     </nav>
     <footer>
       <div>
-        <span class="footer-version">v2.30</span>
+        <span class="footer-version">v2.31</span>
       </div>
     </footer>
     <dialog id="confirmDialog">
@@ -135,6 +141,6 @@
       </div>
     </dialog>
     <script src="./vendor/supabase.js" defer></script>
-    <script type="module" src="./js/main.js?v=2.30"></script>
+    <script type="module" src="./js/main.js?v=2.31"></script>
   </body>
 </html>

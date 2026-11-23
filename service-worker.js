@@ -1,4 +1,4 @@
-const CACHE_VERSION = '2.30';
+const CACHE_VERSION = '2.31';
 const CACHE_NAME = 'peptide-manager-shell-v' + CACHE_VERSION;
 const ASSETS = [
   './',
@@ -11,6 +11,9 @@ const ASSETS = [
   './icon-192.png',
   './icon-512.png',
   './icon-maskable-512.png',
+  './apple-touch-icon.png',
+  './screenshots/mobile.png',
+  './screenshots/desktop.png',
   './vendor/supabase.js',
   './js/state.js',
   './js/lock.js',
@@ -46,12 +49,25 @@ self.addEventListener('activate', (event) => {
 // e o cache serve apenas como reserva offline.
 async function networkFirst(request) {
   const cache = await caches.open(CACHE_NAME);
+  const key = new URL(request.url).pathname;
   try {
     const response = await fetch(request, { cache: 'no-cache' });
-    if (response.ok) cache.put('./index.html', response.clone());
+    if (response.ok) {
+      const type = response.headers.get('content-type') || '';
+      if (type.includes('text/html')) {
+        const copy = response.clone();
+        const html = await copy.text();
+        if (html.includes('<title>Peptide Manager</title>') && html.includes(CACHE_VERSION)) {
+          await cache.put(
+            key,
+            new Response(html, { headers: { 'content-type': 'text/html; charset=utf-8' } }),
+          );
+        }
+      }
+    }
     return response;
   } catch (error) {
-    return (await cache.match('./index.html')) || (await cache.match('./')) || Response.error();
+    return (await cache.match(key)) || (await cache.match('./index.html')) || Response.error();
   }
 }
 

@@ -1,5 +1,18 @@
 # CHANGELOG
 
+## 2.31
+
+- **Navegação:** a aba ativa passa a constar na URL (`?tab=`), o botão Voltar do aparelho troca de
+  aba e os atalhos do manifesto abrem a seção correta.
+- **Foco e formulários:** editar aplicação ou ciclo rola ao formulário e foca o primeiro campo; o
+  foco é preservado depois de atualizar a tela; ciclos e aplicações ganham `label` associado e erro
+  inline com `aria-invalid`.
+- **PWA:** ícone para iPhone, capturas de tela no manifesto, aviso de offline e service worker que
+  só guarda no cache um HTML íntegro e da versão atual.
+- **Segurança:** o SHA-256 do backup é descrito como checksum de corrupção, backups v2 sem checksum
+  são recusados e as actions do CI ficam fixadas por SHA.
+- **Acessibilidade:** link para pular ao conteúdo e diálogos com título e descrição associados.
+
 ## 2.30
 
 - **Legibilidade no celular:** calendário com marcadores coloridos de 8px estáveis por composto (`--c1` a `--c8`) em telas estreitas e pílulas em telas maiores; tamanhos mínimos de fonte padronizados (≥12px para leitura, 11px para rótulos em caixa alta); alvos de toque com área mínima de 44px; suporte à área segura (`safe-area-inset-top` e `bottom`) para iPhone e entalhes.

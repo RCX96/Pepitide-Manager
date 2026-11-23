@@ -315,7 +315,7 @@ export async function exportData() {
     downloadBackupBlob(blob, filename);
     noteBackupPrepared(filename);
     showToast(
-      'Backup verificado e download solicitado. Confirme no gerenciador de arquivos que ele foi salvo.',
+      'Checksum de corrupção conferido e download solicitado. Ele não comprova autenticidade; confirme no gerenciador de arquivos que o arquivo foi salvo.',
     );
   } catch (e) {
     showToast('Backup não gerado: ' + e.message);
@@ -467,7 +467,10 @@ export async function importData() {
       throw Error('Arquivo não reconhecido');
     }
     validateBackup(obj.data);
-    let integrity = 'Backup antigo sem assinatura de integridade (somente estrutura validada).';
+    if ((obj.version ?? 1) >= 2 && obj.integrity === undefined) {
+      throw Error('Backup v2 sem checksum de integridade');
+    }
+    let integrity = 'Backup antigo sem checksum (somente estrutura validada).';
     if (obj.integrity !== undefined) {
       if (
         !obj.integrity ||
@@ -475,13 +478,15 @@ export async function importData() {
         typeof obj.integrity.dataHash !== 'string' ||
         !/^[a-f0-9]{64}$/.test(obj.integrity.dataHash)
       ) {
-        throw Error('Assinatura de integridade inválida');
+        throw Error('Checksum de integridade inválido');
       }
       const actual = await sha256Text(JSON.stringify(obj.data));
       if (actual !== obj.integrity.dataHash) {
-        throw Error('Falha de integridade: conteúdo diferente do backup original');
+        throw Error(
+          'Falha no checksum: conteúdo diferente do backup original (possível corrupção)',
+        );
       }
-      integrity = 'SHA-256 conferido com sucesso.';
+      integrity = 'Checksum SHA-256 de corrupção conferido (não comprova autenticidade).';
     }
     const summary = `${integrity}\nAplicações: ${obj.data.applications.length}\nCiclos: ${obj.data.cycles.length}\nPesagens: ${obj.data.weights.length}\nLixeira: ${(obj.data.trash || []).length}\n\nA restauração substitui os registros atuais. Deseja continuar?`;
     if (!(await confirmDialog('', summary))) {

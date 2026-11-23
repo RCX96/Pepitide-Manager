@@ -55,6 +55,7 @@ import {
   applyTheme,
   confirmDelete,
   confirmDialog,
+  focusFirstFormField,
   promptDialog,
   render,
   setTab,
@@ -186,6 +187,7 @@ export async function handleAction(e) {
       if (id && CYCLE_ID_RE.test(id)) {
         updateEditing(id);
         render();
+        focusFirstFormField();
       }
       break;
     case 'cancel-cycle':
@@ -313,6 +315,24 @@ if (typeof location !== 'undefined' && location.search) {
   if (VALID_TABS.includes(startTab)) {
     updateTab(startTab);
   }
+}
+if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+  window.addEventListener('popstate', () => {
+    if (typeof location === 'undefined') {
+      return;
+    }
+    const next = new URLSearchParams(location.search).get('tab');
+    setTab(VALID_TABS.includes(next) ? next : 'inicio', false);
+  });
+  const updateOfflineBanner = () => {
+    const banner = document.getElementById('offlineBanner');
+    if (banner) {
+      banner.hidden = typeof navigator === 'undefined' || navigator.onLine !== false;
+    }
+  };
+  window.addEventListener('online', updateOfflineBanner);
+  window.addEventListener('offline', updateOfflineBanner);
+  updateOfflineBanner();
 }
 
 // Preserva rascunho do formulário em edição
