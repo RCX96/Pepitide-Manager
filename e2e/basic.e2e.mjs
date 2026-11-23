@@ -308,3 +308,66 @@ test('página de aplicações só abre o formulário pelo botão', async ({ page
   await button.click();
   await expect(page.locator('dialog#appFormDialog')).toBeVisible();
 });
+
+test('nenhuma aba registra violação de CSP no console', async ({ page }) => {
+  await page.addInitScript(() => {
+    const now = new Date().toISOString();
+    const todayDate = new Date().toISOString().slice(0, 10);
+    localStorage.setItem(
+      'peptide-manager-v1',
+      JSON.stringify({
+        applications: [
+          {
+            id: 'a1',
+            date: todayDate,
+            time: '08:30',
+            cycleId: 'c1',
+            notes: '',
+            compounds: [{ name: 'Exemplo', dose: 1, unit: 'mg' }],
+            updatedAt: now,
+          },
+        ],
+        cycles: [
+          {
+            id: 'c1',
+            name: 'Ciclo CSP',
+            start: todayDate,
+            end: new Date(Date.now() + 86400000).toISOString().slice(0, 10),
+            status: 'active',
+            notes: '',
+            pauses: [],
+            updatedAt: now,
+          },
+        ],
+        weights: [],
+        goal: null,
+        trash: [],
+        compoundCatalog: [],
+        reminders: [],
+        deleted: [],
+        schemaVersion: 3,
+      }),
+    );
+  });
+  const erros = [];
+  page.on('console', (msg) => {
+    if (msg.type() === 'error' && /Refused|inline style/i.test(msg.text())) {
+      erros.push(msg.text());
+    }
+  });
+  for (const tab of ['inicio', 'aplicacoes', 'ciclos', 'relatorios', 'configuracoes']) {
+    await page.goto('/?tab=' + tab);
+    await page.locator('#app').waitFor();
+  }
+  expect(erros).toEqual([]);
+  await page.goto('/?tab=ciclos');
+  const progresso = await page.locator('.cycle-progress-fill').first().boundingBox();
+  expect(progresso.width).toBeGreaterThan(0);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/?tab=inicio');
+  const cor = await page
+    .locator('.cal-dot')
+    .first()
+    .evaluate((el) => getComputedStyle(el).backgroundColor);
+  expect(cor).not.toBe('rgba(0, 0, 0, 0)');
+});

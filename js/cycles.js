@@ -27,7 +27,7 @@ export function cycleDetails(x) {
 
   return `<p><strong>${active} dias ativos</strong> <span class="muted">• ${total} dias corridos • ${appCount} aplicação(ões)</span></p>
   <div class="cycle-progress" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100" aria-label="Progresso do ciclo ${esc(x.name)}">
-    <div class="cycle-progress-fill" style="width:${pct}%;"></div>
+    <div class="cycle-progress-fill" data-pct="${pct}"></div>
   </div>
   ${remaining > 0 ? `<p class="muted">Faltam ${remaining} dias</p>` : ''}
   <p class="muted">Início: ${dateFmt(x.start)}${x.status === 'finished' && x.end ? ' • Término: ' + dateFmt(x.end) : ''}</p>

@@ -3,13 +3,13 @@ import { render } from './ui.js';
 import { $, dateFmt, esc, today, uniqueCompoundNames } from './util.js';
 
 /** Hash estável nome → índice 0-7 → variável CSS --c1..--c8 */
-export function compoundColorVar(name) {
+export function compoundColorIndex(name) {
   let h = 0;
   const s = String(name).toLocaleLowerCase('pt-BR');
   for (let i = 0; i < s.length; i++) {
     h = (Math.imul(31, h) + s.charCodeAt(i)) | 0;
   }
-  return `var(--c${(Math.abs(h) % 8) + 1})`;
+  return (Math.abs(h) % 8) + 1;
 }
 
 /** Renderiza pontos coloridos (mobile ≤480px) ou pílulas texto (>480px)
@@ -19,16 +19,13 @@ export function renderCompoundMarkers(container, names, isMobile) {
     const show = names.length > 3 ? names.slice(0, 2) : names.slice(0, 3);
     const extra = names.length - show.length;
     const dots = show
-      .map(
-        (n) =>
-          `<span class="cal-dot" style="background:${compoundColorVar(n)}" title="${esc(n)}"></span>`,
-      )
+      .map((n) => `<span class="cal-dot c${compoundColorIndex(n)}" title="${esc(n)}"></span>`)
       .join('');
     const extraSpan = extra > 0 ? `<span class="cal-dot-extra">+${extra}</span>` : '';
     container.innerHTML = `<span class="cal-dots">${dots}${extraSpan}</span>`;
   } else {
     container.innerHTML = names
-      .map((n) => `<span style="background:${compoundColorVar(n)}">${esc(n)}</span>`)
+      .map((n) => `<span class="c${compoundColorIndex(n)}">${esc(n)}</span>`)
       .join('');
   }
 }
@@ -59,10 +56,7 @@ export function decorateCalendarCompounds() {
         const show = names.length > 3 ? names.slice(0, 2) : names.slice(0, 3);
         const extra = names.length - show.length;
         const dots = show
-          .map(
-            (n) =>
-              `<span class="cal-dot" style="background:${compoundColorVar(n)}" title="${esc(n)}"></span>`,
-          )
+          .map((n) => `<span class="cal-dot c${compoundColorIndex(n)}" title="${esc(n)}"></span>`)
           .join('');
         const extraSpan = extra > 0 ? `<span class="cal-dot-extra">+${extra}</span>` : '';
         summary.innerHTML = `<span class="cal-dots">${dots}${extraSpan}</span>`;
@@ -70,7 +64,7 @@ export function decorateCalendarCompounds() {
         summary.innerHTML = names
           .map(
             (name) =>
-              `<span class="calendar-compound" style="background:${compoundColorVar(name)}">${esc(name)}</span>`,
+              `<span class="calendar-compound c${compoundColorIndex(name)}">${esc(name)}</span>`,
           )
           .join('');
       }
@@ -93,7 +87,7 @@ export function decorateCalendarCompounds() {
     for (const date of visibleDates) {
       for (const name of compoundsOnDate(date)) {
         if (!seenNames.has(name)) {
-          seenNames.set(name, compoundColorVar(name));
+          seenNames.set(name, compoundColorIndex(name));
         }
       }
     }
@@ -104,8 +98,8 @@ export function decorateCalendarCompounds() {
     if (seenNames.size) {
       const legendHTML = `<div class="cal-legend">${[...seenNames.entries()]
         .map(
-          ([name, color]) =>
-            `<span class="cal-legend-item"><span class="cal-legend-dot" style="background:${color}"></span>${esc(name)}</span>`,
+          ([name, index]) =>
+            `<span class="cal-legend-item"><span class="cal-legend-dot c${index}"></span>${esc(name)}</span>`,
         )
         .join('')}</div>`;
       calPanel.insertAdjacentHTML('beforeend', legendHTML);
@@ -249,16 +243,13 @@ export function homeCalendar() {
         const show = names.length > 3 ? names.slice(0, 2) : names.slice(0, 3);
         const extra = names.length - show.length;
         const dots = show
-          .map(
-            (n) =>
-              `<span class="cal-dot" style="background:${compoundColorVar(n)}" title="${esc(n)}"></span>`,
-          )
+          .map((n) => `<span class="cal-dot c${compoundColorIndex(n)}" title="${esc(n)}"></span>`)
           .join('');
         const extraSpan = extra > 0 ? `<span class="cal-dot-extra">+${extra}</span>` : '';
         compounds = `<span class="cal-dots">${dots}${extraSpan}</span>`;
       } else {
         compounds = `<span class="cal-compounds">${names
-          .map((n) => `<span style="background:${compoundColorVar(n)}">${esc(n)}</span>`)
+          .map((n) => `<span class="c${compoundColorIndex(n)}">${esc(n)}</span>`)
           .join('')}</span>`;
       }
     }

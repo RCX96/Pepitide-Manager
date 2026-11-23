@@ -1,6 +1,6 @@
 import { applications } from './apps.js';
 import { backupStatusText } from './backup.js';
-import { calendarPage, compoundColorVar, decorateCalendarCompounds } from './calendar.js';
+import { calendarPage, compoundColorIndex, decorateCalendarCompounds } from './calendar.js';
 import { cycles } from './cycles.js';
 import { hasLock } from './lock.js';
 import { reports } from './reports.js';
@@ -129,6 +129,18 @@ export function focusFirstFormField() {
   }
 }
 
+export function applyDynamicStyles(root = document) {
+  if (!root || !root.querySelectorAll) {
+    return;
+  }
+  root.querySelectorAll('[data-pct]').forEach((el) => {
+    el.style.setProperty('width', `${el.getAttribute('data-pct')}%`);
+  });
+  root.querySelectorAll('[data-min-width]').forEach((el) => {
+    el.style.setProperty('min-width', `${el.getAttribute('data-min-width')}px`);
+  });
+}
+
 export function emptyState(text, btnLabel = '', action = '', id = '') {
   return `<div class="empty-state">
     <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -177,7 +189,7 @@ export function promptDialog(options = {}) {
     const dlg = document.createElement('dialog');
     dlg.setAttribute('aria-labelledby', 'promptTitle');
     dlg.setAttribute('aria-describedby', 'promptText');
-    dlg.innerHTML = `<h2 id="promptTitle">${esc(title)}</h2><p id="promptText">${esc(text)}</p><label class="sr-only" for="promptInput">${esc(title)}</label><input id="promptInput" type="${type === 'password' ? 'password' : 'text'}" value="${esc(value)}" style="width:100%" /><div class="row between"><button type="button" data-cancel>Cancelar</button><button type="button" class="primary" data-ok>OK</button></div>`;
+    dlg.innerHTML = `<h2 id="promptTitle">${esc(title)}</h2><p id="promptText">${esc(text)}</p><label class="sr-only" for="promptInput">${esc(title)}</label><input id="promptInput" type="${type === 'password' ? 'password' : 'text'}" value="${esc(value)}" class="dialog-input" /><div class="row between"><button type="button" data-cancel>Cancelar</button><button type="button" class="primary" data-ok>OK</button></div>`;
     document.body.appendChild(dlg);
     const input = dlg.querySelector('input');
     dlg.showModal();
@@ -430,6 +442,7 @@ export function render() {
     }
   }
   decorateCalendarCompounds();
+  applyDynamicStyles();
   syncHeader();
   syncNav();
   if (focusKey && typeof document !== 'undefined') {
@@ -520,10 +533,7 @@ export function todayBlock() {
   let appsStatus = '<p class="muted">Nenhuma aplicação hoje</p>';
   if (todayApps.length) {
     const dots = todayCompoundNames
-      .map(
-        (n) =>
-          `<span class="cal-dot" style="background:${compoundColorVar(n)}" title="${esc(n)}"></span>`,
-      )
+      .map((n) => `<span class="cal-dot c${compoundColorIndex(n)}" title="${esc(n)}"></span>`)
       .join('');
     appsStatus = `<p><strong>${todayApps.length} aplicação(ões) hoje:</strong> <span class="cal-dots">${dots}</span> <span class="muted">${todayCompoundNames.map(esc).join(', ')}</span></p>`;
   }
@@ -581,7 +591,7 @@ export function home() {
                 </div>
                 <p><strong>${cycleDuration(c)}</strong> <span class="muted">• desde ${dateFmt(c.start)}</span></p>
                 <div class="cycle-progress" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100" aria-label="Progresso do ciclo ${esc(c.name)}">
-                  <div class="cycle-progress-fill" style="width:${pct}%;"></div>
+                  <div class="cycle-progress-fill" data-pct="${pct}"></div>
                 </div>
                 ${remaining > 0 ? `<p class="muted">Faltam ${remaining} dias</p>` : ''}
                 <div class="row">

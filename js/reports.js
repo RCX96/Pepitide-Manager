@@ -1,4 +1,4 @@
-import { compoundColorVar } from './calendar.js';
+import { compoundColorIndex } from './calendar.js';
 import {
   CYCLE_ID_RE,
   db,
@@ -129,8 +129,8 @@ export function barChartSVG(data) {
     })
     .join('');
 
-  return `<div class="chart-container" style="overflow-x:auto;">
-    <svg viewBox="0 0 ${width} ${height}" width="100%" height="${height}" style="min-width:${width}px;" aria-hidden="true">
+  return `<div class="chart-container">
+    <svg viewBox="0 0 ${width} ${height}" width="100%" height="${height}" data-min-width="${width}" aria-hidden="true">
       <line x1="15" y1="${paddingTop + chartHeight}" x2="${width - 10}" y2="${paddingTop + chartHeight}" stroke="var(--line, rgba(148,163,184,0.2))" stroke-width="1" />
       ${bars}
     </svg>
@@ -154,11 +154,11 @@ export function compoundBarsHTML(apps) {
   return `<div class="compound-bars">${sorted
     .map(([name, count]) => {
       const pct = Math.round((count / max) * 100);
-      const color = compoundColorVar(name);
+      const color = compoundColorIndex(name);
       return `<div class="compound-bar-row">
         <span class="compound-bar-name">${esc(name)}</span>
         <div class="compound-bar-track">
-          <div class="compound-bar-fill" style="width:${pct}%;background:${color};"></div>
+          <div class="compound-bar-fill c${color}" data-pct="${pct}"></div>
         </div>
         <span class="compound-bar-count">${count}</span>
       </div>`;
