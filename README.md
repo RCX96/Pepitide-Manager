@@ -38,7 +38,7 @@ compostos e não substitui orientação profissional.
 ## Sincronizar entre o desktop e o celular
 
 O app usa a mesma conta Supabase nos dois aparelhos. A URL e a chave pública do projeto já estão
-configuradas em `app.js`. A chave pública pode ficar no aplicativo. A proteção dos dados depende do
+configuradas em `js/state.js`. A chave pública pode ficar no aplicativo. A proteção dos dados depende do
 RLS da tabela `user_data`.
 
 ### Configure a tabela uma vez
@@ -113,7 +113,18 @@ Ao entrar, o app baixa os dados da nuvem e substitui os dados locais desse apare
 
 ```
 index.html            interface da PWA
-app.js                lógica do aplicativo (todas as telas e ações)
+js/                   módulos ES do aplicativo
+  main.js             entrada, eventos delegados e inicialização
+  state.js            estado compartilhado, migrações e setters
+  util.js             helpers de data, texto e identificadores
+  ui.js               renderização, navegação e diálogos
+  calendar.js         calendário e painel inicial
+  apps.js             aplicações e compostos
+  cycles.js           ciclos
+  lock.js             bloqueio local do aplicativo
+  sync.js             sincronização Supabase
+  backup.js           backup, importação e lixeira
+  reports.js          relatórios
 styles.css            temas, componentes e animações
 manifest.webmanifest  metadados da PWA
 service-worker.js     cache offline (network-first na navegação)
@@ -121,9 +132,10 @@ icon-192.png          ícone
 icon-512.png          ícone
 icon-maskable-512.png ícone com margem segura (Android)
 tests/logic.test.mjs  testes das funções puras
+vendor/supabase.js    cliente Supabase local (sem CDN)
 ```
 
-O aplicativo termina com `render()` e registra o service worker, quando disponível. As funções de
+O aplicativo inicia em `js/main.js` e registra o service worker, quando disponível. As funções de
 domínio (`dayCount`, `elapsedCycle`, `strictDate`, `validateBackup`, `csvCell`) são puras o
 suficiente para serem testadas fora do navegador.
 
@@ -151,11 +163,11 @@ Abrir `index.html` direto no disco também funciona, mas sem modo offline.
 
 O aplicativo é um front-end estático. O branch `main` é a fonte da verdade; o GitHub Pages ou outro
 servidor estático expõe a PWA sem um servidor próprio. A sincronização usa o projeto Supabase
-configurado em `app.js`.
+configurado em `js/state.js`.
 
 ## Versionamento
 
-- `index.html` exibe a versão no rodapé e carrega `app.js`/`styles.css` com `?v=<versão>`.
+- `index.html` exibe a versão no rodapé e carrega `js/main.js`/`styles.css` com `?v=<versão>`.
 - Cada versão publicada recebe uma tag e uma release no GitHub (`v2.4`, por exemplo).
 - O cache do service worker usa o mesmo número (`peptide-manager-shell-v2.28`); ao publicar,
   atualize `CACHE_VERSION` em `service-worker.js` e o `?v=` em `index.html`. O app mostra

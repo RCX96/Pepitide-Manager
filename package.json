@@ -5,12 +5,12 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test",
+    "test": "node --experimental-vm-modules --test",
     "e2e": "playwright test",
-    "lint": "eslint app.js styles.css",
-    "lint:fix": "eslint app.js styles.css --fix",
-    "format": "prettier --write index.html app.js styles.css manifest.webmanifest service-worker.js README.md",
-    "format:check": "prettier --check index.html app.js styles.css manifest.webmanifest service-worker.js README.md"
+    "lint": "eslint js styles.css",
+    "lint:fix": "eslint js styles.css --fix",
+    "format": "prettier --write index.html \"js/*.js\" styles.css manifest.webmanifest service-worker.js README.md CHANGELOG.md",
+    "format:check": "prettier --check index.html \"js/*.js\" styles.css manifest.webmanifest service-worker.js README.md CHANGELOG.md"
   },
   "devDependencies": {
     "@playwright/test": "^1.49.0",

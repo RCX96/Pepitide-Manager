@@ -17,4 +17,4 @@ jobs:
         with:
           node-version: 22
       - name: Rodar testes
-        run: node --test
+        run: node --experimental-vm-modules --test

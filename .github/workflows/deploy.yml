@@ -24,7 +24,7 @@ jobs:
         with:
           node-version: 22
       - name: Rodar testes
-        run: node --test
+        run: node --experimental-vm-modules --test
 
   build:
     needs: test
@@ -35,7 +35,9 @@ jobs:
       - name: Separar arquivos publicados
         run: |
           mkdir -p _site
-          cp index.html app.js styles.css manifest.webmanifest service-worker.js icon-192.png icon-512.png icon-maskable-512.png _site/
+          cp index.html styles.css manifest.webmanifest service-worker.js icon-192.png icon-512.png icon-maskable-512.png _site/
+          cp -r js _site/js
+          cp -r vendor _site/vendor
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
@@ -60,15 +62,17 @@ jobs:
       - name: Conferir conteúdo publicado
         run: |
           URL="https://rcx96.github.io/Pepitide-Manager"
-          EXPECTED=$(sha256sum app.js | cut -d' ' -f1)
+          FILES=$(find js -name '*.js' | sort)
+          EXPECTED=$(cat $FILES | sha256sum | cut -d' ' -f1)
           CACHE=$(grep -o 'peptide-manager-shell-v[0-9.]*' service-worker.js | head -1 | sed 's/.*-v//')
-          echo "sha256 do app.js no repositório: $EXPECTED / cache do service worker: $CACHE"
+          echo "sha256 dos módulos js/ no repositório: $EXPECTED / cache do service worker: $CACHE"
           for i in $(seq 1 10); do
-            live=$(curl -fsS "$URL/app.js?cb=$RANDOM" | sha256sum | cut -d' ' -f1 || true)
+            live=$(for f in $FILES; do curl -fsS "$URL/$f?cb=$RANDOM" || exit 1; done | sha256sum | cut -d' ' -f1 || true)
             sw=$(curl -fsS "$URL/service-worker.js?cb=$RANDOM" || true)
-            if [ "$live" = "$EXPECTED" ] && echo "$sw" | grep -q "shell-v$CACHE"; then
+            idx=$(curl -fsS "$URL/index.html?cb=$RANDOM" || true)
+            if [ "$live" = "$EXPECTED" ] && echo "$sw" | grep -q "shell-v$CACHE" && echo "$idx" | grep -q 'js/main.js'; then
               echo "publicado ok"; exit 0
             fi
             sleep 15
           done
-          echo "app.js publicado não confere com o commit; cache esperado: $CACHE"; exit 1
+          echo "módulos js/ publicados não conferem com o commit; cache esperado: $CACHE"; exit 1

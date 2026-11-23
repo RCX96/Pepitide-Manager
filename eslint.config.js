@@ -7,7 +7,7 @@ export default [
     files: ['**/*.js'],
     languageOptions: {
       ecmaVersion: 2022,
-      sourceType: 'script',
+      sourceType: 'module',
       globals: {
         document: 'readonly',
         window: 'readonly',

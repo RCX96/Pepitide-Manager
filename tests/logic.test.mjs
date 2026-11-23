@@ -2,18 +2,69 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import path from 'node:path';
 import vm from 'node:vm';
 import { webcrypto } from 'node:crypto';
 
 const htmlPath = fileURLToPath(new URL('../index.html', import.meta.url));
-const appPath = fileURLToPath(new URL('../app.js', import.meta.url));
+const jsDir = fileURLToPath(new URL('../js/', import.meta.url));
 const html = readFileSync(htmlPath, 'utf8');
-const js = readFileSync(appPath, 'utf8');
-if (!js) throw new Error('Script app.js não encontrado');
 
-// O app é um arquivo único: carregamos o script inline em um contexto isolado,
-// com o mínimo de DOM/armazenamento para o render inicial, e testamos as funções puras.
-function loadApp(initialData = null) {
+// O app é dividido em módulos ES em js/. Cada teste carrega os módulos em um
+// contexto vm isolado, com o mínimo de DOM/armazenamento, via um módulo-ponte
+// que expõe as funções e getters vivos para o estado mutável.
+const MODULES = [
+  'state',
+  'lock',
+  'util',
+  'ui',
+  'calendar',
+  'apps',
+  'cycles',
+  'sync',
+  'backup',
+  'reports',
+  'main',
+];
+const STATE_LETTERS = [
+  'db',
+  'loadError',
+  'tab',
+  'editing',
+  'appDraft',
+  'compounds',
+  'applicationFilter',
+  'catalogFilter',
+  'suppressHomeCalendar',
+  'supabaseClient',
+  'supabaseUser',
+  'supabaseSyncStatus',
+  'supabaseSyncError',
+  'supabaseLastSync',
+  'syncTimer',
+  'unlocked',
+  'historyCompound',
+  'reportFrom',
+  'reportTo',
+  'reportCycle',
+];
+const bridgeSource = `
+${MODULES.map((m) => `import * as ${m} from './${m}.js';`).join(String.fromCharCode(10))}
+import './main.js';
+const api = {};
+for (const m of [${MODULES.join(', ')}]) {
+  for (const k of Object.keys(m)) {
+    if (typeof m[k] === 'function') api[k] = m[k];
+  }
+}
+for (const n of ${JSON.stringify(STATE_LETTERS)}) {
+  Object.defineProperty(api, n, { get: () => state[n], configurable: true });
+}
+api.cloudHooks = sync.cloudHooks;
+globalThis.__app = api;
+`;
+
+async function loadApp(initialData = null) {
   const elements = new Map();
   const makeElement = () => ({
     innerHTML: '',
@@ -40,8 +91,6 @@ function loadApp(initialData = null) {
     },
     navigator: {},
     window: { addEventListener() {} },
-    alert() {},
-    confirm: () => true,
     crypto: webcrypto,
     URL,
     Blob,
@@ -50,35 +99,51 @@ function loadApp(initialData = null) {
     console,
     setTimeout,
     clearTimeout,
+    location: { protocol: 'https:', hostname: 'localhost' },
   };
   sandbox.globalThis = sandbox;
-  vm.createContext(sandbox);
-  vm.runInContext(js, sandbox, { filename: 'app.js' });
-  // `db` é declarado com `let`, então não vira propriedade do sandbox; expõe um getter para os testes.
-  Object.defineProperty(sandbox, 'db', {
-    get: () => vm.runInContext('db', sandbox),
-    configurable: true,
+  const ctx = vm.createContext(sandbox);
+  const moduleCache = new Map();
+  const linker = (specifier) => {
+    const file = path.join(jsDir, specifier.replace(/^\.\//, ''));
+    if (!moduleCache.has(file)) {
+      moduleCache.set(
+        file,
+        new vm.SourceTextModule(readFileSync(file, 'utf8'), {
+          identifier: specifier,
+          context: ctx,
+        }),
+      );
+    }
+    return moduleCache.get(file);
+  };
+  const bridge = new vm.SourceTextModule(bridgeSource, {
+    identifier: 'bridge',
+    context: ctx,
   });
-  sandbox._getStored = () => {
+  await bridge.link(linker);
+  await bridge.evaluate();
+  const api = sandbox.__app;
+  api._getStored = () => {
     const raw = store.get('peptide-manager-v1');
     return raw ? JSON.parse(raw) : null;
   };
-  return sandbox;
+  return api;
 }
 
-const app = loadApp();
+const app = await loadApp();
 
-test('dayCount conta os dias de forma inclusiva', () => {
+test('dayCount conta os dias de forma inclusiva', async () => {
   assert.equal(app.dayCount('2026-11-01', '2026-11-03'), 3);
   assert.equal(app.dayCount('2026-11-03', '2026-11-03'), 1);
 });
 
-test('dayCount devolve zero para intervalo invertido ou datas ausentes', () => {
+test('dayCount devolve zero para intervalo invertido ou datas ausentes', async () => {
   assert.equal(app.dayCount('2026-11-03', '2026-11-01'), 0);
   assert.equal(app.dayCount('', '2026-11-01'), 0);
 });
 
-test('elapsedCycle desconta pausas sem contar o dia da retomada', () => {
+test('elapsedCycle desconta pausas sem contar o dia da retomada', async () => {
   const cycle = {
     status: 'finished',
     start: '2026-11-01',
@@ -89,7 +154,7 @@ test('elapsedCycle desconta pausas sem contar o dia da retomada', () => {
   assert.equal(app.elapsedCycle(cycle), 9);
 });
 
-test('elapsedCycle não fica negativo', () => {
+test('elapsedCycle não fica negativo', async () => {
   const cycle = {
     status: 'finished',
     start: '2026-11-10',
@@ -99,23 +164,23 @@ test('elapsedCycle não fica negativo', () => {
   assert.equal(app.elapsedCycle(cycle), 0);
 });
 
-test('strictDate só aceita datas ISO reais', () => {
+test('strictDate só aceita datas ISO reais', async () => {
   assert.equal(app.strictDate('2026-02-28'), true);
   assert.equal(app.strictDate('2026-02-30'), false);
   assert.equal(app.strictDate('2026-2-3'), false);
   assert.equal(app.strictDate('ontem'), false);
 });
 
-test('validateBackup aceita a estrutura mínima', () => {
+test('validateBackup aceita a estrutura mínima', async () => {
   assert.equal(app.validateBackup({ applications: [], cycles: [], weights: [] }), true);
 });
 
-test('validateBackup recusa estrutura incompleta', () => {
+test('validateBackup recusa estrutura incompleta', async () => {
   assert.throws(() => app.validateBackup({}), /Estrutura do backup inválida/);
   assert.throws(() => app.validateBackup(null), /Estrutura do backup inválida/);
 });
 
-test('validateBackup recusa identificadores duplicados', () => {
+test('validateBackup recusa identificadores duplicados', async () => {
   const weight = { id: 'a', date: '2026-11-01', value: 80 };
   assert.throws(
     () => app.validateBackup({ applications: [], cycles: [], weights: [weight, { ...weight }] }),
@@ -123,7 +188,7 @@ test('validateBackup recusa identificadores duplicados', () => {
   );
 });
 
-test('validateBackup recusa aplicação sem compostos válidos', () => {
+test('validateBackup recusa aplicação sem compostos válidos', async () => {
   const base = { applications: [], cycles: [], weights: [] };
   assert.throws(
     () =>
@@ -145,7 +210,7 @@ test('validateBackup recusa aplicação sem compostos válidos', () => {
   );
 });
 
-test('validateBackup recusa peso fora da faixa', () => {
+test('validateBackup recusa peso fora da faixa', async () => {
   assert.throws(
     () =>
       app.validateBackup({
@@ -157,14 +222,14 @@ test('validateBackup recusa peso fora da faixa', () => {
   );
 });
 
-test('validateBackup recusa meta inválida', () => {
+test('validateBackup recusa meta inválida', async () => {
   assert.throws(
     () => app.validateBackup({ applications: [], cycles: [], weights: [], goal: 0 }),
     /Meta inválida/,
   );
 });
 
-test('validateBackup recusa lixeira com tipo desconhecido', () => {
+test('validateBackup recusa lixeira com tipo desconhecido', async () => {
   assert.throws(
     () =>
       app.validateBackup({
@@ -177,14 +242,14 @@ test('validateBackup recusa lixeira com tipo desconhecido', () => {
   );
 });
 
-test('csvCell neutraliza fórmulas e escapa aspas', () => {
+test('csvCell neutraliza fórmulas e escapa aspas', async () => {
   assert.equal(app.csvCell('=1+1').startsWith('"\'='), true);
   assert.equal(app.csvCell('@cmd').startsWith('"\'@'), true);
   assert.equal(app.csvCell('texto "com aspas"'), '"texto ""com aspas"""');
   assert.equal(app.csvCell('-1'), '"-1"');
 });
 
-test('validateBackup recusa ciclo com identificador malicioso (XSS)', () => {
+test('validateBackup recusa ciclo com identificador malicioso (XSS)', async () => {
   assert.throws(
     () =>
       app.validateBackup({
@@ -219,7 +284,7 @@ test('validateBackup recusa ciclo com identificador malicioso (XSS)', () => {
   );
 });
 
-test('validateBackup aceita ciclo com identificador válido (hex / uuid)', () => {
+test('validateBackup aceita ciclo com identificador válido (hex / uuid)', async () => {
   assert.equal(
     app.validateBackup({
       applications: [],
@@ -237,7 +302,7 @@ test('validateBackup aceita ciclo com identificador válido (hex / uuid)', () =>
   );
 });
 
-test('validateBackup recusa aplicação vinculada a cycleId inválido', () => {
+test('validateBackup recusa aplicação vinculada a cycleId inválido', async () => {
   assert.throws(
     () =>
       app.validateBackup({
@@ -256,7 +321,7 @@ test('validateBackup recusa aplicação vinculada a cycleId inválido', () => {
   );
 });
 
-test('validateBackup aceita e valida o catálogo de compostos', () => {
+test('validateBackup aceita e valida o catálogo de compostos', async () => {
   assert.equal(
     app.validateBackup({
       applications: [],
@@ -272,7 +337,7 @@ test('validateBackup aceita e valida o catálogo de compostos', () => {
   );
 });
 
-test('validateBackup aceita lembretes e recusa repetição inválida', () => {
+test('validateBackup aceita lembretes e recusa repetição inválida', async () => {
   const base = { applications: [], cycles: [], weights: [] };
   assert.equal(
     app.validateBackup({
@@ -299,8 +364,8 @@ test('validateBackup aceita lembretes e recusa repetição inválida', () => {
   );
 });
 
-test('aplicação pode ser duplicada para uma nova data sem alterar o original', () => {
-  const testApp = loadApp();
+test('aplicação pode ser duplicada para uma nova data sem alterar o original', async () => {
+  const testApp = await loadApp();
   testApp.db.applications = [
     {
       id: 'app-1',
@@ -320,23 +385,23 @@ test('aplicação pode ser duplicada para uma nova data sem alterar o original',
   assert.equal(rendered.includes('data-action="copy-app"'), true);
 });
 
-test('index.html não contém handlers onclick inline', () => {
+test('index.html não contém handlers onclick inline', async () => {
   assert.equal(/\sonclick=/i.test(html), false);
 });
 
-test('menu não exibe a seção Dados', () => {
+test('menu não exibe a seção Dados', async () => {
   assert.equal(/data-id="dados"/i.test(html), false);
 });
 
-test('menu é renderizado em MAIÚSCULAS e sem ícones', () => {
-  const rendered = loadApp().navHTML();
+test('menu é renderizado em MAIÚSCULAS e sem ícones', async () => {
+  const rendered = (await loadApp()).navHTML();
   for (const label of ['INÍCIO', 'APLICAÇÕES', 'CICLOS', 'RELATÓRIOS', 'AJUSTES']) {
     assert.equal(rendered.includes(`>${label}<`), true, label);
   }
   assert.equal(/[⌂♢◷▤⚙]/.test(rendered), false);
 });
 
-test('manifest tem ícone maskable próprio e atalhos válidos', () => {
+test('manifest tem ícone maskable próprio e atalhos válidos', async () => {
   const manifest = JSON.parse(
     readFileSync(fileURLToPath(new URL('../manifest.webmanifest', import.meta.url)), 'utf8'),
   );
@@ -349,19 +414,19 @@ test('manifest tem ícone maskable próprio e atalhos válidos', () => {
   }
 });
 
-test('menu não exibe uma página separada de calendário', () => {
+test('menu não exibe uma página separada de calendário', async () => {
   assert.equal(/data-id="calendario"/i.test(html), false);
 });
 
-test('calendário de aplicações renderiza a grade reutilizável', () => {
-  const testApp = loadApp();
+test('calendário de aplicações renderiza a grade reutilizável', async () => {
+  const testApp = await loadApp();
   const rendered = testApp.calendarPage();
   assert.equal(rendered.includes('Calendário de aplicações'), true);
   assert.equal(rendered.includes('calendar-grid'), true);
 });
 
-test('renderização de ciclos utiliza data-action e data-id sem onclick inline', () => {
-  const testApp = loadApp();
+test('renderização de ciclos utiliza data-action e data-id sem onclick inline', async () => {
+  const testApp = await loadApp();
   testApp.db.cycles = [
     {
       id: 'abc-123',
@@ -381,8 +446,8 @@ test('renderização de ciclos utiliza data-action e data-id sem onclick inline'
   assert.equal(rendered.includes('<script>'), false);
 });
 
-test('handleAction gerencia eventos via delegação de data-action e data-id', () => {
-  const testApp = loadApp();
+test('handleAction gerencia eventos via delegação de data-action e data-id', async () => {
+  const testApp = await loadApp();
   testApp.db.cycles = [
     {
       id: 'cafe01',
@@ -436,7 +501,7 @@ test('handleAction gerencia eventos via delegação de data-action e data-id', (
   assert.equal(testApp.db.cycles[0].status, 'active');
 });
 
-test('uniqueCompoundNames remove duplicados e trata maiúsculas/minúsculas como iguais', () => {
+test('uniqueCompoundNames remove duplicados e trata maiúsculas/minúsculas como iguais', async () => {
   const names = ['Semaglutida', ' semaglutida ', 'Semaglutida', 'Liraglutida', 'liraglutida'];
   assert.deepStrictEqual(Array.from(app.uniqueCompoundNames(names)), [
     'Semaglutida',
@@ -444,12 +509,12 @@ test('uniqueCompoundNames remove duplicados e trata maiúsculas/minúsculas como
   ]);
 });
 
-test('uniqueCompoundNames ignora espaços extras e mantém a primeira ocorrência', () => {
+test('uniqueCompoundNames ignora espaços extras e mantém a primeira ocorrência', async () => {
   assert.deepStrictEqual(Array.from(app.uniqueCompoundNames(['A', ' a ', 'A'])), ['A']);
   assert.deepStrictEqual(Array.from(app.uniqueCompoundNames([' X ', 'x', 'Y '])), ['X', 'Y']);
 });
 
-test('reminderMatchesDate considera daily e weekly', () => {
+test('reminderMatchesDate considera daily e weekly', async () => {
   const weekly = { active: true, date: '2026-11-01', repeat: 'weekly' };
   assert.equal(app.reminderMatchesDate(weekly, '2026-11-01'), true);
   assert.equal(app.reminderMatchesDate(weekly, '2026-11-08'), true);
@@ -460,7 +525,7 @@ test('reminderMatchesDate considera daily e weekly', () => {
   assert.equal(app.reminderMatchesDate(daily, '2026-11-04'), false);
 });
 
-test('compoundHistory ordena por data decrescente e filtra pelo composto', () => {
+test('compoundHistory ordena por data decrescente e filtra pelo composto', async () => {
   app.db.applications = [
     { date: '2026-11-02', compounds: [{ name: 'Semaglutida', dose: 1, unit: 'mg' }] },
     { date: '2026-11-05', compounds: [{ name: 'Semaglutida', dose: 1.5, unit: 'mg' }] },
@@ -472,7 +537,7 @@ test('compoundHistory ordena por data decrescente e filtra pelo composto', () =>
   assert.equal(history[1].date, '2026-11-02');
 });
 
-test('lastCompoundEntry retorna a última entrada de um composto', () => {
+test('lastCompoundEntry retorna a última entrada de um composto', async () => {
   app.db.applications = [
     { date: '2026-11-01', compounds: [{ name: 'Semaglutida', dose: 1, unit: 'mg' }] },
     { date: '2026-11-03', compounds: [{ name: 'Semaglutida', dose: 1.5, unit: 'mg' }] },
@@ -480,7 +545,7 @@ test('lastCompoundEntry retorna a última entrada de um composto', () => {
   assert.equal(app.lastCompoundEntry('Semaglutida').dose, 1.5);
 });
 
-test('homeCalendar mostra os compostos de cada dia e gera acesso rápido por data', () => {
+test('homeCalendar mostra os compostos de cada dia e gera acesso rápido por data', async () => {
   app.db.applications = [
     {
       date: '2026-11-01',
@@ -513,8 +578,8 @@ test('homeCalendar mostra os compostos de cada dia e gera acesso rápido por dat
   assert.match(html, /data-id="2026-11-02"[\s\S]*?Semaglutida/);
 });
 
-test('compoundsOnDate lista os compostos aplicados no dia sem duplicar nomes', () => {
-  const testApp = loadApp();
+test('compoundsOnDate lista os compostos aplicados no dia sem duplicar nomes', async () => {
+  const testApp = await loadApp();
   testApp.db.applications = [
     { date: '2026-11-14', compounds: [{ name: 'Semaglutida' }, { name: 'semaglutida' }] },
     { date: '2026-11-14', compounds: [{ name: 'BPC-157' }] },
@@ -522,8 +587,8 @@ test('compoundsOnDate lista os compostos aplicados no dia sem duplicar nomes', (
   assert.deepEqual(Array.from(testApp.compoundsOnDate('2026-11-14')), ['Semaglutida', 'BPC-157']);
 });
 
-test('relatórios não exibem recursos de peso', () => {
-  const testApp = loadApp();
+test('relatórios não exibem recursos de peso', async () => {
+  const testApp = await loadApp();
   const rendered = testApp.reports();
   assert.equal(rendered.includes('Pesagens'), false);
   assert.equal(rendered.includes('Evolução de peso'), false);
@@ -531,58 +596,66 @@ test('relatórios não exibem recursos de peso', () => {
 });
 
 // A sincronização usa uma marca local para saber se há alteração ainda não enviada.
-test('salvar marca alteração pendente e o envio concluído limpa a marca', () => {
-  const testApp = loadApp();
-  vm.runInContext('supabaseClient = {}; supabaseUser = { id: "u1" };', testApp);
+test('salvar marca alteração pendente e o envio concluído limpa a marca', async () => {
+  const testApp = await loadApp();
+  testApp.updateSupabaseClient({});
+  testApp.updateSupabaseUser({ id: 'u1' });
   assert.equal(testApp.hasPendingPush(), false);
-  vm.runInContext('scheduleCloudSync();', testApp);
+  testApp.scheduleCloudSync();
   assert.equal(testApp.hasPendingPush(), true);
-  vm.runInContext('clearPendingPush();', testApp);
+  testApp.clearPendingPush();
   assert.equal(testApp.hasPendingPush(), false);
 });
 
 test('syncWithCloud envia a alteração pendente e depois se alinha com a nuvem', async () => {
-  const testApp = loadApp();
+  const testApp = await loadApp();
   testApp.calls = [];
-  vm.runInContext(
-    `supabaseClient = {}; supabaseUser = { id: 'u1' };
-     pushToCloud = async () => { calls.push('push'); return true; };
-     pullFromCloud = async (opts) => { calls.push('pull:' + JSON.stringify(opts || {})); };
-     markPendingPush();`,
-    testApp,
-  );
+  testApp.updateSupabaseClient({});
+  testApp.updateSupabaseUser({ id: 'u1' });
+  testApp.cloudHooks.pushToCloud = async () => {
+    testApp.calls.push('push');
+    return true;
+  };
+  testApp.cloudHooks.pullFromCloud = async (opts) => {
+    testApp.calls.push('pull:' + JSON.stringify(opts || {}));
+  };
+  testApp.markPendingPush();
   await testApp.syncWithCloud();
   assert.deepEqual(Array.from(testApp.calls), ['push', 'pull:{"replaceLocal":true}']);
 });
 
 test('syncWithCloud baixa a nuvem quando não há nada pendente', async () => {
-  const testApp = loadApp();
+  const testApp = await loadApp();
   testApp.calls = [];
-  vm.runInContext(
-    `supabaseClient = {}; supabaseUser = { id: 'u1' };
-     pushToCloud = async () => { calls.push('push'); return true; };
-     pullFromCloud = async (opts) => { calls.push('pull:' + JSON.stringify(opts || {})); };
-     clearPendingPush();`,
-    testApp,
-  );
+  testApp.updateSupabaseClient({});
+  testApp.updateSupabaseUser({ id: 'u1' });
+  testApp.cloudHooks.pushToCloud = async () => {
+    testApp.calls.push('push');
+    return true;
+  };
+  testApp.cloudHooks.pullFromCloud = async (opts) => {
+    testApp.calls.push('pull:' + JSON.stringify(opts || {}));
+  };
+  testApp.clearPendingPush();
   await testApp.syncWithCloud();
   assert.deepEqual(Array.from(testApp.calls), ['pull:{"replaceLocal":true}']);
 });
 
 test('syncWithCloud não faz nada sem conta conectada', async () => {
-  const testApp = loadApp();
+  const testApp = await loadApp();
   testApp.calls = [];
-  vm.runInContext(
-    `supabaseClient = null; supabaseUser = null;
-     pushToCloud = async () => { calls.push('push'); return true; };
-     pullFromCloud = async () => { calls.push('pull'); };`,
-    testApp,
-  );
+  testApp.cloudHooks.pushToCloud = async () => {
+    testApp.calls.push('push');
+    return true;
+  };
+  testApp.cloudHooks.pullFromCloud = async () => {
+    testApp.calls.push('pull');
+  };
   await testApp.syncWithCloud();
   assert.deepEqual(Array.from(testApp.calls), []);
 });
 
-test('runMigrations preenche updatedAt, deleted e schemaVersion', () => {
+test('runMigrations preenche updatedAt, deleted e schemaVersion', async () => {
   const result = app.runMigrations({
     applications: [{ id: 'a1', date: '2026-11-01', compounds: [{ name: 'A', dose: 1, unit: 'mg' }] }],
     cycles: [],
@@ -593,7 +666,7 @@ test('runMigrations preenche updatedAt, deleted e schemaVersion', () => {
   assert.equal(typeof result.applications[0].updatedAt, 'string');
 });
 
-test('runMigrations preserva schemaVersion já atual', () => {
+test('runMigrations preserva schemaVersion já atual', async () => {
   const result = app.runMigrations({
     applications: [],
     cycles: [],
@@ -604,7 +677,7 @@ test('runMigrations preserva schemaVersion já atual', () => {
   assert.equal(result.schemaVersion, 3);
 });
 
-test('validateBackup recusa backup de versão futura', () => {
+test('validateBackup recusa backup de versão futura', async () => {
   assert.throws(
     () =>
       app.validateBackup({
@@ -617,7 +690,7 @@ test('validateBackup recusa backup de versão futura', () => {
   );
 });
 
-test('mergeDb mantém o registro com updatedAt mais recente', () => {
+test('mergeDb mantém o registro com updatedAt mais recente', async () => {
   const local = {
     applications: [
       { id: 'a1', date: '2026-11-01', updatedAt: '2026-11-01T10:00:00Z', compounds: [{ name: 'A', dose: 1, unit: 'mg' }] },
@@ -637,7 +710,7 @@ test('mergeDb mantém o registro com updatedAt mais recente', () => {
   assert.equal(merged.applications[0].compounds[0].name, 'B');
 });
 
-test('mergeDb remove registro com tombstone mais recente', () => {
+test('mergeDb remove registro com tombstone mais recente', async () => {
   const local = {
     applications: [
       { id: 'a1', date: '2026-11-01', updatedAt: '2026-11-01T10:00:00Z', compounds: [{ name: 'A', dose: 1, unit: 'mg' }] },

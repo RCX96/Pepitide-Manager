@@ -11,3 +11,5 @@
 - `aria-current="page"` na navegação.
 - CSP restritiva no `index.html`.
 - Preservação de rascunho do formulário durante edição.
+- `app.js` dividido em módulos ES em `js/` (entry point `js/main.js`); service worker e deploy
+  publicam a pasta `js/` e `vendor/`.

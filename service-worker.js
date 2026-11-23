@@ -4,12 +4,22 @@ const ASSETS = [
   './',
   './index.html',
   './manifest.webmanifest',
-  './app.js',
   './styles.css',
   './icon-192.png',
   './icon-512.png',
   './icon-maskable-512.png',
   './vendor/supabase.js',
+  './js/state.js',
+  './js/lock.js',
+  './js/util.js',
+  './js/ui.js',
+  './js/calendar.js',
+  './js/apps.js',
+  './js/cycles.js',
+  './js/sync.js',
+  './js/backup.js',
+  './js/reports.js',
+  './js/main.js',
 ];
 
 self.addEventListener('install', (event) => {
