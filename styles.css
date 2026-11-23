@@ -1101,6 +1101,23 @@ footer {
   margin-bottom: 0;
 }
 
+.history-panel > summary {
+  cursor: pointer;
+  margin-bottom: var(--space-3);
+  color: var(--text-strong);
+  font-size: var(--fs-lg);
+  font-weight: 600;
+}
+
+.history-panel > summary::marker {
+  color: var(--accent);
+}
+
+.history-panel > summary:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .report-section > summary {
   cursor: pointer;
   margin-bottom: var(--space-3);
@@ -1323,13 +1340,9 @@ footer {
   }
   #app[data-tab='relatorios'] > .report-charts {
     grid-area: charts;
-    grid-template-columns: 1fr 1fr;
   }
   #app[data-tab='relatorios'] > .report-tables {
     grid-area: tables;
-  }
-  .chart-block + .chart-block h2 {
-    margin-top: 0;
   }
 }
 

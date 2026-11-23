@@ -171,3 +171,69 @@ test('tabelas de relatórios ficam empilhadas, largas e recolhíveis', async ({ 
   await sections.nth(0).locator('summary').click();
   await expect(table).toBeVisible();
 });
+
+test('ajustes não duplica catálogo nem backup criptografado', async ({ page }) => {
+  await page.goto('/?tab=configuracoes');
+  await expect(page.getByRole('heading', { name: 'Catálogo de compostos' })).toHaveCount(1);
+  await expect(page.getByRole('heading', { name: 'Backup criptografado' })).toHaveCount(1);
+});
+
+test('histórico de aplicações pode ser recolhido', async ({ page }) => {
+  await page.goto('/?tab=aplicacoes');
+  const section = page.locator('details.history-panel');
+  await expect(section).toHaveCount(1);
+  const list = section.locator('#applicationList');
+  await expect(list).toBeVisible();
+  await section.locator('summary').click();
+  await expect(list).toBeHidden();
+  await section.locator('summary').click();
+  await expect(list).toBeVisible();
+});
+
+test('gráfico semanal se estende alinhado aos filtros no desktop', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.addInitScript(() => {
+    const now = new Date().toISOString();
+    localStorage.setItem(
+      'peptide-manager-v1',
+      JSON.stringify({
+        applications: [
+          {
+            id: 'a1b2',
+            date: '2026-11-22',
+            time: '08:00',
+            cycleId: 'c1d2',
+            notes: '',
+            compounds: [{ name: 'Exemplo', dose: 1, unit: 'mg' }],
+            updatedAt: now,
+          },
+        ],
+        cycles: [
+          {
+            id: 'c1d2',
+            name: 'Ciclo exemplo',
+            start: '2026-11-01',
+            end: '2026-11-30',
+            status: 'active',
+            notes: '',
+            pauses: [],
+            updatedAt: now,
+          },
+        ],
+        weights: [],
+        goal: null,
+        trash: [],
+        compoundCatalog: [],
+        reminders: [],
+        deleted: [],
+        schemaVersion: 3,
+      }),
+    );
+  });
+  await page.goto('/?tab=relatorios');
+  const filters = await page.locator('.report-filters').boundingBox();
+  const weekly = await page.locator('.chart-block').first().boundingBox();
+  const compounds = await page.locator('.chart-block').nth(1).boundingBox();
+  expect(weekly.width).toBeGreaterThan(filters.width);
+  expect(weekly.y).toBeLessThan(compounds.y);
+});

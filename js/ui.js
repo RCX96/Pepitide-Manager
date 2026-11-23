@@ -400,7 +400,7 @@ export function render() {
       .replace(/<div class="metric"><span>Meta de peso<\/span>[\s\S]*?<\/div>/, '')
       .replace(/<button[^>]*data-id="peso"[^>]*>[^<]*<\/button>/, '');
   }
-  if (tab === 'aplicacoes' || tab === 'configuracoes') {
+  if (tab === 'aplicacoes') {
     appendRendered(extraPanels());
   }
   if (tab === 'aplicacoes') {
@@ -418,9 +418,6 @@ export function render() {
         emptyCycle.textContent = 'Selecione um ciclo';
       }
     }
-  }
-  if (tab === 'configuracoes') {
-    appendRendered(encryptedBackupPanel());
   }
   decorateCalendarCompounds();
   syncHeader();

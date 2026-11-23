@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## 2.34
+
+- **Aplicações:** o histórico virou uma seção recolhível com seta, como o histórico por composto.
+- **Ajustes:** corrigida a duplicação do catálogo de compostos, da aparência, da proteção local e do
+  backup criptografado no fim da página.
+- **Relatórios no desktop:** o gráfico de aplicações por semana ocupa a largura da coluna de
+  gráficos e fica acima do gráfico por composto, alinhado ao painel de filtros e exportação.
+
 ## 2.33
 
 - **Relatórios:** as tabelas de Aplicações e Ciclos ficam uma abaixo da outra, ocupando toda a
