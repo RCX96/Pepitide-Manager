@@ -38,6 +38,7 @@ jobs:
           cp index.html styles.css manifest.webmanifest service-worker.js icon-192.png icon-512.png icon-maskable-512.png _site/
           cp -r js _site/js
           cp -r vendor _site/vendor
+          cp -r fonts _site/fonts
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

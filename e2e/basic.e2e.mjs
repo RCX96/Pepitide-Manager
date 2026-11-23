@@ -11,7 +11,7 @@ test('navega entre as abas principais', async ({ page }) => {
   await page.getByRole('button', { name: /ciclos/i }).click();
   await expect(page.getByText('Ciclos salvos')).toBeVisible();
   await page.getByRole('button', { name: /ajustes/i }).click();
-  await expect(page.getByText('Ajustes', { exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Ajustes' })).toBeVisible();
 });
 
 test('cria um ciclo e registra uma aplicação', async ({ page }) => {

@@ -9,18 +9,19 @@ compostos e não substitui orientação profissional.
 
 - Fontes: <https://github.com/RCX96/Pepitide-Manager>
 - App: <https://rcx96.github.io/Pepitide-Manager/>
-- Versão atual: 2.28
+- Versão atual: 2.30
 
 ## O que faz
 
 - **Aplicações:** data, horário, ciclo vinculado, compostos por seringa e observações.
-- **Ciclos:** início, fim, pausas e retomadas; o tempo ativo desconta os dias em pausa.
-- **Início:** calendário das aplicações por dia e tempo dos ciclos ativos.
-- **Relatórios:** filtros por período e ciclo, exportação CSV e impressão/PDF.
+- **Ciclos:** início, fim, pausas e retomadas; linha do tempo de progresso e agrupamento de ciclos finalizados.
+- **Início:** bloco "Hoje" com data por extenso, registros do dia, atalho rápido de repetição e calendário mensal/semanal.
+- **Relatórios:** gráficos de resumo visual (aplicações por semana em SVG e barras por composto), filtros por período e ciclo, exportação CSV e impressão/PDF.
+- **Aparência e temas:** suporte a tema escuro, claro e automático com seletor em Ajustes e tipografia Inter local.
 - **Ajustes:** backup JSON com verificação SHA-256, restauração validada, lixeira e diagnóstico de
   integridade.
 - **Sincronização na nuvem:** conta por e-mail e senha no Supabase; cada registro sobe sozinho e
-  desce em um aparelho novo ao entrar na mesma conta.
+  desce em um aparelho novo ao entrar na mesma conta, com indicador visual no cabeçalho.
 - **Catálogo de compostos:** sugestões de nomes salvos para agilizar novos registros.
 - **Proteção local:** código de bloqueio com hash (AES-256-GCM disponível no backup criptografado).
 

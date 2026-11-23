@@ -10,7 +10,7 @@ import {
   updateCompounds,
   updateEditing,
 } from './state.js';
-import { button, render, setTab, showToast } from './ui.js';
+import { button, emptyState, render, setTab, showToast } from './ui.js';
 import {
   $,
   compoundNameList,
@@ -148,20 +148,22 @@ export function applicationListHTML() {
     .slice()
     .sort((x, y) => y.date.localeCompare(x.date));
   if (!visible.length) {
-    return '<p class="empty">Nenhuma aplicação registrada.</p>';
+    return emptyState(
+      'Nenhuma aplicação registrada.',
+      'Registrar a primeira aplicação',
+      'set-tab',
+      'aplicacoes',
+    );
   }
   return visible
     .map(
       (x) =>
-        `<div class="item"><div class="row between"><b>${dateFmt(x.date)} ${esc(x.time || '')}</b></div><p>${x.compounds.map((c) => `${esc(c.name)} (${esc(c.dose)} ${esc(c.unit)})`).join(' + ')}</p><p class="muted">${esc(db.cycles.find((c) => c.id === x.cycleId)?.name || 'Sem ciclo')} ${x.notes ? '• ' + esc(x.notes) : ''}</p><div class="row">${button('Duplicar', 'copy-app', x.id)}${button('Editar', 'edit-app', x.id)}${button('Excluir', 'delete-app', x.id, 'danger')}</div></div>`,
+        `<div class="item ${x.id === editing ? 'is-editing' : ''}"><div class="row between"><b>${dateFmt(x.date)} ${esc(x.time || '')}</b></div><p>${x.compounds.map((c) => `${esc(c.name)} (${esc(c.dose)} ${esc(c.unit)})`).join(' + ')}</p><p class="muted">${esc(db.cycles.find((c) => c.id === x.cycleId)?.name || 'Sem ciclo')} ${x.notes ? '• ' + esc(x.notes) : ''}</p><div class="row">${button('Duplicar', 'copy-app', x.id)}${button('Editar', 'edit-app', x.id)}${button('Excluir', 'delete-app', x.id, 'danger')}</div></div>`,
     )
     .join('');
 }
 
 export function applications() {
-  const visible = filteredApplications()
-    .slice()
-    .sort((x, y) => y.date.localeCompare(x.date));
   const a = editing ? db.applications.find((x) => x.id === editing) : appDraft;
   const mode = editing ? 'Editar' : a && a._isCopy === true ? 'Nova (cópia)' : 'Nova';
   return `<h1>Aplicações</h1><div class="panel"><h2>${mode} aplicação</h2><form id="appForm" data-form="app"><div class="two"><div><label for="appDate">Data</label><input id="appDate" name="date" type="date" required value="${a?.date || today()}"></div><div><label for="appTime">Horário (opcional)</label><input id="appTime" name="time" type="time" value="${a?.time || ''}"></div></div><label for="appCycle">Ciclo obrigatório</label><select id="appCycle" name="cycleId" required><option value="">Selecione um ciclo</option>${db.cycles

@@ -1,10 +1,13 @@
-const CACHE_VERSION = '2.29';
+const CACHE_VERSION = '2.30';
 const CACHE_NAME = 'peptide-manager-shell-v' + CACHE_VERSION;
 const ASSETS = [
   './',
   './index.html',
   './manifest.webmanifest',
   './styles.css',
+  './fonts/inter-latin-400-normal.woff2',
+  './fonts/inter-latin-600-normal.woff2',
+  './fonts/inter-latin-700-normal.woff2',
   './icon-192.png',
   './icon-512.png',
   './icon-maskable-512.png',

@@ -52,11 +52,13 @@ import {
 } from './sync.js';
 import {
   VALID_TABS,
+  applyTheme,
   confirmDelete,
   confirmDialog,
   promptDialog,
   render,
   setTab,
+  setTheme,
   syncNav,
 } from './ui.js';
 import { $, lastCompoundEntry } from './util.js';
@@ -286,35 +288,20 @@ export async function handleAction(e) {
     case 'cloud-delete-data':
       deleteCloudData();
       break;
+    case 'set-theme':
+      if (id) {
+        setTheme(id);
+      }
+      break;
   }
 }
 
-export function setupVisualEffects() {
-  if (typeof document === 'undefined' || typeof document.addEventListener !== 'function') {
-    return;
-  }
-  document.addEventListener('pointerdown', (e) => {
-    const target =
-      e.target && typeof e.target.closest === 'function' ? e.target.closest('button') : null;
-    if (!target || typeof target.getBoundingClientRect !== 'function') {
-      return;
-    }
-    const rect = target.getBoundingClientRect();
-    const ripple = document.createElement('span');
-    ripple.className = 'ripple';
-    ripple.style.left = `${e.clientX - rect.left}px`;
-    ripple.style.top = `${e.clientY - rect.top}px`;
-    target.appendChild(ripple);
-    setTimeout(() => ripple.remove(), 650);
-  });
-  document.addEventListener('pointermove', (e) => {
-    if (document.documentElement && e.clientX !== undefined) {
-      document.documentElement.style.setProperty('--pointer-x', `${e.clientX}px`);
-      document.documentElement.style.setProperty('--pointer-y', `${e.clientY}px`);
-    }
+applyTheme();
+if (typeof window !== 'undefined' && window.matchMedia) {
+  window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => {
+    applyTheme();
   });
 }
-setupVisualEffects();
 if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
   document.addEventListener('click', handleAction);
 } else if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {

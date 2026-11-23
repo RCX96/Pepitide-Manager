@@ -1,5 +1,5 @@
 import { CYCLE_ID_RE, db, editing, updateEditing } from './state.js';
-import { button, showToast } from './ui.js';
+import { button, emptyState, showToast } from './ui.js';
 import { dateFmt, dayCount, elapsedCycle, esc, save, today, uid } from './util.js';
 
 export function cycleDetails(x) {
@@ -14,7 +14,43 @@ export function cycleDetails(x) {
     )
     .join('');
   const appCount = db.applications.filter((a) => a.cycleId === x.id).length;
-  return `<p><strong>${active} dias ativos</strong> <span class="muted">• ${total} dias corridos • ${appCount} aplicação(ões)</span></p><p class="muted">Início: ${dateFmt(x.start)}${x.status === 'finished' && x.end ? ' • Término: ' + dateFmt(x.end) : ''}</p>${periods ? `<details><summary>Pausas (${(x.pauses || []).length})</summary><div class="item">${periods}</div></details>` : ''}`;
+
+  const durDays = dayCount(x.start, todayDate);
+  const remaining = x.end && x.end > todayDate ? dayCount(todayDate, x.end) - 1 : 0;
+  const totalPlanned = x.end ? dayCount(x.start, x.end) : 0;
+  const pct =
+    totalPlanned > 0
+      ? Math.min(100, Math.round((durDays / totalPlanned) * 100))
+      : x.status === 'finished'
+        ? 100
+        : 100;
+
+  return `<p><strong>${active} dias ativos</strong> <span class="muted">• ${total} dias corridos • ${appCount} aplicação(ões)</span></p>
+  <div class="cycle-progress" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100" aria-label="Progresso do ciclo ${esc(x.name)}">
+    <div class="cycle-progress-fill" style="width:${pct}%;"></div>
+  </div>
+  ${remaining > 0 ? `<p class="muted">Faltam ${remaining} dias</p>` : ''}
+  <p class="muted">Início: ${dateFmt(x.start)}${x.status === 'finished' && x.end ? ' • Término: ' + dateFmt(x.end) : ''}</p>
+  ${periods ? `<details><summary>Pausas (${(x.pauses || []).length})</summary><div class="item">${periods}</div></details>` : ''}`;
+}
+
+export function renderCycleCard(x) {
+  const statusLabel =
+    x.status === 'active' ? 'Em andamento' : x.status === 'paused' ? 'Pausado' : 'Finalizado';
+  return `<div class="item">
+    <div class="row between">
+      <b>${esc(x.name)}</b>
+      <span class="pill ${x.status}">${statusLabel}</span>
+    </div>
+    ${cycleDetails(x)}
+    <p>${esc(x.notes || '')}</p>
+    <div class="row">
+      ${button('Editar', 'edit-cycle', x.id)}
+      ${x.status === 'active' ? button('Pausar', 'pause-cycle', x.id) : x.status === 'paused' ? button('Retomar', 'resume-cycle', x.id) : button('Reabrir', 'resume-cycle', x.id)}
+      ${x.status !== 'finished' ? button('Finalizar', 'finish-cycle', x.id) : ''}
+      ${button('Excluir', 'delete-cycle', x.id, 'danger')}
+    </div>
+  </div>`;
 }
 
 export function cycles() {
@@ -22,7 +58,50 @@ export function cycles() {
   const validCycles = db.cycles.filter(
     (x) => x && typeof x.id === 'string' && CYCLE_ID_RE.test(x.id),
   );
-  return `<h1>Ciclos salvos</h1><div class="panel"><h2>${c ? 'Editar ciclo' : 'Novo ciclo'}</h2><form data-form="cycle"><label>Nome</label><input name="name" required value="${esc(c?.name || '')}" placeholder="Ex.: Ciclo de novembro"><div class="two"><div><label>Data de início</label><input type="date" name="start" required value="${c?.start || today()}"></div><div><label>Data de término (opcional)</label><input type="date" name="end" value="${c?.end || ''}"></div></div><label>Situação</label><select name="status"><option value="active" ${!c || c.status === 'active' ? 'selected' : ''}>Em andamento</option><option value="paused" ${c?.status === 'paused' ? 'selected' : ''}>Pausado</option><option value="finished" ${c?.status === 'finished' ? 'selected' : ''}>Finalizado</option></select><label>Observações</label><textarea name="notes">${esc(c?.notes || '')}</textarea><div class="row actions"><button type="submit" class="primary">Salvar ciclo</button>${c ? button('Cancelar', 'cancel-cycle') : ''}</div></form></div><div class="panel"><h2>Meus ciclos</h2>${validCycles.length ? validCycles.map((x) => `<div class="item"><div class="row between"><b>${esc(x.name)}</b><span class="pill">${x.status === 'active' ? 'Em andamento' : x.status === 'paused' ? 'Pausado' : 'Finalizado'}</span></div>${cycleDetails(x)}<p>${esc(x.notes || '')}</p><div class="row">${button('Editar', 'edit-cycle', x.id)}${x.status === 'active' ? button('Pausar', 'pause-cycle', x.id) : x.status === 'paused' ? button('Retomar', 'resume-cycle', x.id) : button('Reabrir', 'resume-cycle', x.id)}${x.status !== 'finished' ? button('Finalizar', 'finish-cycle', x.id) : ''}${button('Excluir', 'delete-cycle', x.id, 'danger')}</div></div>`).join('') : '<p class="empty">Nenhum ciclo salvo.</p>'}</div>`;
+  const ongoing = validCycles.filter((x) => x.status !== 'finished');
+  const finished = validCycles.filter((x) => x.status === 'finished');
+
+  let listHTML = '';
+  if (!validCycles.length) {
+    listHTML = emptyState('Nenhum ciclo salvo.', 'Criar o primeiro ciclo', 'set-tab', 'ciclos');
+  } else {
+    listHTML = ongoing.map(renderCycleCard).join('');
+    if (finished.length) {
+      listHTML += `<details class="finished-cycles">
+        <summary>Ciclos finalizados (${finished.length})</summary>
+        ${finished.map(renderCycleCard).join('')}
+      </details>`;
+    }
+  }
+
+  return `<h1>Ciclos salvos</h1>
+  <div class="panel">
+    <h2>${c ? 'Editar ciclo' : 'Novo ciclo'}</h2>
+    <form data-form="cycle">
+      <label>Nome</label>
+      <input name="name" required value="${esc(c?.name || '')}" placeholder="Ex.: Ciclo de novembro">
+      <div class="two">
+        <div><label>Data de início</label><input type="date" name="start" required value="${c?.start || today()}"></div>
+        <div><label>Data de término (opcional)</label><input type="date" name="end" value="${c?.end || ''}"></div>
+      </div>
+      <label>Situação</label>
+      <select name="status">
+        <option value="active" ${!c || c.status === 'active' ? 'selected' : ''}>Em andamento</option>
+        <option value="paused" ${c?.status === 'paused' ? 'selected' : ''}>Pausado</option>
+        <option value="finished" ${c?.status === 'finished' ? 'selected' : ''}>Finalizado</option>
+      </select>
+      <label>Observações</label>
+      <textarea name="notes">${esc(c?.notes || '')}</textarea>
+      <div class="row actions">
+        <button type="submit" class="primary">Salvar ciclo</button>
+        ${c ? button('Cancelar', 'cancel-cycle') : ''}
+      </div>
+    </form>
+  </div>
+  <div class="panel">
+    <h2>Meus ciclos</h2>
+    ${listHTML}
+  </div>`;
 }
 
 export function changeCycleStatus(id, status) {

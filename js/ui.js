@@ -1,6 +1,6 @@
 import { applications } from './apps.js';
 import { backupStatusText } from './backup.js';
-import { calendarPage, decorateCalendarCompounds } from './calendar.js';
+import { calendarPage, compoundColorVar, decorateCalendarCompounds } from './calendar.js';
 import { cycles } from './cycles.js';
 import { reports } from './reports.js';
 import {
@@ -10,6 +10,7 @@ import {
   db,
   historyCompound,
   loadError,
+  supabaseSyncStatus,
   supabaseUser,
   tab,
   unlocked,
@@ -23,35 +24,83 @@ import {
   compoundHistory,
   cycleDuration,
   dateFmt,
+  dayCount,
   esc,
   rememberedCompoundNames,
   save,
+  today,
   uid,
+  uniqueCompoundNames,
 } from './util.js';
 
-export function showToast(text, type = 'info') {
-  let container = document.getElementById('toastContainer');
-  if (!container) {
-    container = document.createElement('div');
-    container.id = 'toastContainer';
-    container.style.cssText =
-      'position:fixed;bottom:16px;left:50%;transform:translateX(-50%);z-index:9999;display:flex;flex-direction:column;gap:8px;';
-    document.body.appendChild(container);
+export function getSavedTheme() {
+  return (
+    (typeof localStorage !== 'undefined' && localStorage.getItem('peptide-manager-theme')) || 'auto'
+  );
+}
+
+export function applyTheme(theme = getSavedTheme()) {
+  if (typeof document === 'undefined' || !document.documentElement) {
+    return;
   }
-  const toast = document.createElement('div');
+  const root = document.documentElement;
+  if (theme === 'auto') {
+    root.removeAttribute?.('data-theme');
+  } else {
+    root.setAttribute?.('data-theme', theme);
+  }
+  const isLight =
+    theme === 'light' ||
+    (theme === 'auto' &&
+      typeof window !== 'undefined' &&
+      window.matchMedia?.('(prefers-color-scheme: light)').matches);
+  const themeMeta = document.querySelector?.('meta[name="theme-color"]');
+  if (themeMeta) {
+    themeMeta.setAttribute?.('content', isLight ? '#f4f7fb' : '#08111f');
+  }
+}
+
+export function setTheme(theme) {
+  if (typeof localStorage !== 'undefined') {
+    localStorage.setItem('peptide-manager-theme', theme);
+  }
+  applyTheme(theme);
+  render();
+}
+
+export function showToast(text, type = 'info') {
+  let toast = document.querySelector('.toast');
+  if (toast) {
+    toast.remove();
+  }
+  toast = document.createElement('div');
+  toast.className = `toast ${type === 'error' ? 'toast-error' : ''}`;
   toast.setAttribute('role', type === 'error' ? 'alert' : 'status');
   toast.setAttribute('aria-live', type === 'error' ? 'assertive' : 'polite');
   toast.textContent = text;
-  toast.style.cssText =
-    'padding:10px 16px;border-radius:8px;background:#1f2937;color:#fff;box-shadow:0 4px 12px rgba(0,0,0,.3);max-width:90vw;';
-  container.appendChild(toast);
-  setTimeout(() => toast.remove(), 3000);
+  document.body.appendChild(toast);
+  setTimeout(() => {
+    toast.classList.add('fade-out');
+    setTimeout(() => toast.remove(), 300);
+  }, 4000);
+}
+
+export function emptyState(text, btnLabel = '', action = '', id = '') {
+  return `<div class="empty-state">
+    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="10"></circle>
+      <line x1="12" y1="8" x2="12" y2="12"></line>
+      <line x1="12" y1="16" x2="12.01" y2="16"></line>
+    </svg>
+    <p>${esc(text)}</p>
+    ${btnLabel ? button(btnLabel, action, id, 'primary') : ''}
+  </div>`;
 }
 
 export function confirmDialog(title, text) {
   return new Promise((resolve) => {
     const dlg = document.createElement('dialog');
-    dlg.innerHTML = `<h2>${esc(title)}</h2><p>${esc(text)}</p><div class="row between"><button type="button" data-cancel>Cancelar</button><button type="button" class="danger" data-ok>Confirmar</button></div>`;
+    dlg.innerHTML = `<h2>${esc(title)}</h2><p>${esc(text)}</p><div class="row between"><button type="button" data-cancel>Cancelar</button><button type="button" class="danger" data-ok>Sim, excluir</button></div>`;
     document.body.appendChild(dlg);
     dlg.showModal();
     dlg.querySelector('[data-ok]').addEventListener('click', () => {
@@ -98,18 +147,38 @@ export const button = (label, action, id = '', cls = '', extra = '') =>
   `<button type="button" class="${cls}" data-action="${action}"${id !== '' && id !== null && id !== undefined ? ` data-id="${esc(id)}"` : ''}${extra}>${label}</button>`;
 
 export const navs = [
-  ['inicio', 'INÍCIO'],
-  ['aplicacoes', 'APLICAÇÕES'],
-  ['ciclos', 'CICLOS'],
-  ['relatorios', 'RELATÓRIOS'],
-  ['configuracoes', 'AJUSTES'],
+  [
+    'inicio',
+    'INÍCIO',
+    '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10l9-7 9 7v10a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1V10z"/></svg>',
+  ],
+  [
+    'aplicacoes',
+    'APLICAÇÕES',
+    '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>',
+  ],
+  [
+    'ciclos',
+    'CICLOS',
+    '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>',
+  ],
+  [
+    'relatorios',
+    'RELATÓRIOS',
+    '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>',
+  ],
+  [
+    'configuracoes',
+    'AJUSTES',
+    '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
+  ],
 ];
 
 export function navHTML() {
   return navs
     .map(
-      ([id, label]) =>
-        `<button type="button" data-action="set-tab" data-id="${esc(id)}">${label}</button>`,
+      ([id, label, icon]) =>
+        `<button type="button" data-action="set-tab" data-id="${esc(id)}">${icon ? `<span class="nav-icon">${icon}</span>` : ''}<span>${label}</span></button>`,
     )
     .join('');
 }
@@ -121,6 +190,7 @@ export function setTab(t) {
   updateEditing(null);
   render();
   syncNav();
+  animateRender(true);
 }
 
 export function syncNav() {
@@ -139,6 +209,44 @@ export function syncNav() {
   }
 }
 
+export function syncHeader() {
+  const sub = $('headerSubtitle');
+  if (sub) {
+    const titles = {
+      inicio: 'Início',
+      aplicacoes: 'Aplicações',
+      ciclos: 'Ciclos',
+      relatorios: 'Relatórios',
+      configuracoes: 'Ajustes',
+    };
+    sub.textContent = titles[tab] || '';
+  }
+  const statusEl = $('headerSyncStatus');
+  if (statusEl) {
+    if (supabaseUser) {
+      const raw = supabaseSyncStatus || 'Sincronizado';
+      let state = 'synced';
+      let label = 'Sincronizado';
+      if (/sincronizando|carregando/i.test(raw)) {
+        state = 'syncing';
+        label = 'Sincronizando';
+      } else if (/pendente/i.test(raw)) {
+        state = 'pending';
+        label = 'Pendente';
+      } else if (/offline/i.test(raw)) {
+        state = 'offline';
+        label = 'Offline';
+      } else if (/erro/i.test(raw)) {
+        state = 'error';
+        label = 'Erro';
+      }
+      statusEl.innerHTML = `<span class="sync-indicator ${state}"><span class="sync-dot"></span><span class="sync-text">${label}</span></span>`;
+    } else {
+      statusEl.innerHTML = '';
+    }
+  }
+}
+
 export function extraPanels() {
   if (tab === 'aplicacoes') {
     return `<div class="panel quick-filter"><h2>Buscar aplicações</h2><label class="sr-only" for="applicationSearch">Buscar aplicações</label><input id="applicationSearch" type="search" aria-label="Buscar aplicações" value="${esc(applicationFilter)}" placeholder="Composto, data ou observação" data-filter="apps"></div>`;
@@ -149,22 +257,29 @@ export function extraPanels() {
         !catalogFilter ||
         n.toLocaleLowerCase('pt-BR').includes(catalogFilter.toLocaleLowerCase('pt-BR')),
     );
-    return `<div class="panel"><h2>Catálogo de compostos</h2><input type="search" placeholder="Filtrar catálogo" value="${esc(catalogFilter)}" data-filter="catalog"><div class="catalog-list">${names.length ? names.map((name) => `<div class="row between catalog-row"><span>${esc(name)}</span><span class="row"><button type="button" data-action="rename-compound" data-id="${esc(name)}">Renomear</button><button type="button" class="danger" data-action="remove-compound-name" data-id="${esc(name)}">Remover</button></span></div>`).join('') : '<p class="empty">Nenhum composto salvo.</p>'}</div></div><div class="panel"><h2>Proteção local</h2>${localStorage.getItem('peptide-manager-lock-v1') ? button('Alterar código local', 'set-lock') + button('Remover código local', 'remove-lock') : button('Criar código local', 'set-lock', '', 'primary')}</div>`;
+    const theme = getSavedTheme();
+    return `<div class="panel"><h2>Aparência</h2><div class="theme-picker row"><button type="button" class="${theme === 'auto' ? 'primary' : ''}" data-action="set-theme" data-id="auto">Automático</button><button type="button" class="${theme === 'dark' ? 'primary' : ''}" data-action="set-theme" data-id="dark">Escuro</button><button type="button" class="${theme === 'light' ? 'primary' : ''}" data-action="set-theme" data-id="light">Claro</button></div></div><div class="panel"><h2>Catálogo de compostos</h2><input type="search" placeholder="Filtrar catálogo" value="${esc(catalogFilter)}" data-filter="catalog"><div class="catalog-list">${names.length ? names.map((name) => `<div class="row between catalog-row"><span>${esc(name)}</span><span class="row"><button type="button" data-action="rename-compound" data-id="${esc(name)}">Renomear</button><button type="button" class="danger" data-action="remove-compound-name" data-id="${esc(name)}">Remover</button></span></div>`).join('') : emptyState('As sugestões aparecem conforme você registra.')}</div></div><div class="panel"><h2>Proteção local</h2>${localStorage.getItem('peptide-manager-lock-v1') ? button('Alterar código local', 'set-lock') + button('Remover código local', 'remove-lock') : button('Criar código local', 'set-lock', '', 'primary')}</div>`;
   }
   return '';
 }
 
-export function animateRender() {
+export function animateRender(isTabChange = false) {
+  if (!isTabChange || tab === 'relatorios') {
+    return;
+  }
   const app = $('app');
   if (!app || typeof app.querySelectorAll !== 'function') {
     return;
   }
-  const nodes = app.querySelectorAll('.panel, .metric, .item, .calendar-day');
+  const nodes = Array.from(app.querySelectorAll('.panel, .metric, .item, .calendar-day')).slice(
+    0,
+    12,
+  );
   nodes.forEach((node, index) => {
     node.classList.add('reveal');
     const show = () => node.classList.add('is-visible');
     if (typeof requestAnimationFrame === 'function') {
-      requestAnimationFrame(() => setTimeout(show, Math.min(index * 28, 240)));
+      requestAnimationFrame(() => setTimeout(show, Math.min(index * 20, 240)));
     } else {
       show();
     }
@@ -174,7 +289,7 @@ export function animateRender() {
 export function applicationsExtraPanel() {
   const names = rememberedCompoundNames();
   const history = historyCompound ? compoundHistory(historyCompound) : [];
-  return `<div class="panel"><h2>Histórico por composto</h2><label for="historyCompound">Composto</label><select id="historyCompound" aria-label="Filtrar histórico por composto" data-change="history-compound"><option value="">Escolha um composto</option>${names.map((n) => `<option value="${esc(n)}" ${historyCompound === n ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select>${historyCompound ? (history.length ? history.map((a) => `<div class="item"><b>${dateFmt(a.date)} ${esc(a.time || '')}</b><p>${a.compounds.map((c) => `${esc(c.name)} (${esc(c.dose)} ${esc(c.unit)})`).join(' + ')}</p></div>`).join('') : '<p class="empty">Nenhum registro para este composto.</p>') : ''}</div>`;
+  return `<div class="panel"><h2>Histórico por composto</h2><label for="historyCompound">Composto</label><select id="historyCompound" aria-label="Filtrar histórico por composto" data-change="history-compound"><option value="">Escolha um composto</option>${names.map((n) => `<option value="${esc(n)}" ${historyCompound === n ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select>${historyCompound ? (history.length ? history.map((a) => `<div class="item"><b>${dateFmt(a.date)} ${esc(a.time || '')}</b><p>${a.compounds.map((c) => `${esc(c.name)} (${esc(c.dose)} ${esc(c.unit)})`).join(' + ')}</p></div>`).join('') : emptyState('Nenhum registro para este composto.')) : emptyState('Escolha um composto para ver o histórico.')}</div>`;
 }
 
 export function encryptedBackupPanel() {
@@ -204,6 +319,7 @@ export function render() {
     return;
   }
   $('bottom-nav').innerHTML = navHTML();
+  $('app')?.setAttribute?.('data-tab', tab);
   updateSuppressHomeCalendar(tab === 'inicio');
   $('app').innerHTML = {
     inicio: home,
@@ -218,7 +334,6 @@ export function render() {
       .innerHTML.replace(/<div class="metric"><span>Peso atual<\/span>[\s\S]*?<\/div>/, '')
       .replace(/<div class="metric"><span>Meta de peso<\/span>[\s\S]*?<\/div>/, '')
       .replace(/<button[^>]*data-id="peso"[^>]*>[^<]*<\/button>/, '');
-    $('app').innerHTML = calendarPage() + $('app').innerHTML;
   }
   if (tab === 'aplicacoes' || tab === 'configuracoes') {
     appendRendered(extraPanels());
@@ -243,7 +358,8 @@ export function render() {
     appendRendered(encryptedBackupPanel());
   }
   decorateCalendarCompounds();
-  animateRender();
+  syncHeader();
+  syncNav();
 }
 
 export function confirmDelete(type, id) {
@@ -300,10 +416,102 @@ export function confirmDelete(type, id) {
   $('confirmDialog').showModal();
 }
 
+export function todayBlock() {
+  const now = new Date();
+  const rawDateStr = now.toLocaleDateString('pt-BR', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  });
+  const todayFormatted = rawDateStr.charAt(0).toUpperCase() + rawDateStr.slice(1);
+  const tDate = today();
+  const todayApps = db.applications.filter((a) => a.date === tDate);
+  const todayCompoundNames = uniqueCompoundNames(
+    todayApps.flatMap((a) => (a.compounds || []).map((c) => c.name)),
+  );
+  const sortedApps = db.applications
+    .slice()
+    .sort((a, b) => `${b.date}${b.time || ''}`.localeCompare(`${a.date}${a.time || ''}`));
+  const lastApp = sortedApps[0];
+  const activeCycles = db.cycles.filter((x) => x.status === 'active' && CYCLE_ID_RE.test(x.id));
+
+  let appsStatus = '<p class="muted">Nenhuma aplicação hoje</p>';
+  if (todayApps.length) {
+    const dots = todayCompoundNames
+      .map(
+        (n) =>
+          `<span class="cal-dot" style="background:${compoundColorVar(n)}" title="${esc(n)}"></span>`,
+      )
+      .join('');
+    appsStatus = `<p><strong>${todayApps.length} aplicação(ões) hoje:</strong> <span class="cal-dots">${dots}</span> <span class="muted">${todayCompoundNames.map(esc).join(', ')}</span></p>`;
+  }
+
+  let lastAppHTML = '';
+  if (lastApp) {
+    lastAppHTML = `<p class="muted">Último registro: ${dateFmt(lastApp.date)} ${esc(lastApp.time || '')} • ${lastApp.compounds.map((c) => `${esc(c.name)} (${esc(c.dose)} ${esc(c.unit)})`).join(' + ')}</p>`;
+  }
+
+  const primaryBtn = activeCycles.length
+    ? button('Registrar aplicação', 'set-tab', 'aplicacoes', 'primary')
+    : button('Criar ciclo', 'set-tab', 'ciclos', 'primary');
+  const repeatBtn = lastApp ? button('Repetir último registro', 'quick-register') : '';
+
+  return `<div class="panel today-panel">
+    <div class="row between">
+      <h2>Hoje</h2>
+      <span class="muted">${todayFormatted}</span>
+    </div>
+    ${appsStatus}
+    ${lastAppHTML}
+    <div class="row actions">
+      ${primaryBtn}
+      ${repeatBtn}
+    </div>
+  </div>`;
+}
+
 export function home() {
   const active = db.cycles.filter((x) => x.status === 'active' && CYCLE_ID_RE.test(x.id));
   const paused = db.cycles.filter((x) => x.status === 'paused' && CYCLE_ID_RE.test(x.id));
-  return `<div class="grid"><div class="metric"><span>Aplicações</span><strong>${db.applications.length}</strong></div><div class="metric"><span>Ciclos em andamento</span><strong>${active.length}</strong></div></div><div class="panel"><h2>Tempo dos ciclos</h2>${active.length || paused.length ? [...active, ...paused].map((c) => `<div class="item"><div class="row between"><b>${esc(c.name)}</b><span class="pill">${c.status === 'paused' ? 'Pausado' : 'Em andamento'}</span></div><p><strong>${cycleDuration(c)}</strong> <span class="muted">• desde ${dateFmt(c.start)}</span></p><div class="row">${button(c.status === 'paused' ? 'Retomar ciclo' : 'Pausar ciclo', c.status === 'paused' ? 'resume-cycle' : 'pause-cycle', c.id)}${button('Ver ciclo', 'set-tab', 'ciclos')}</div></div>`).join('') : '<p class="empty">Nenhum ciclo em andamento ou pausado.</p>'}</div>`;
+  const tDate = today();
+
+  return `${todayBlock()}
+  <div class="grid">
+    <div class="metric"><span>Aplicações</span><strong>${db.applications.length}</strong></div>
+    <div class="metric highlight"><span>Ciclos em andamento</span><strong>${active.length}</strong></div>
+  </div>
+  ${calendarPage()}
+  <div class="panel">
+    <h2>Tempo dos ciclos</h2>
+    ${
+      active.length || paused.length
+        ? [...active, ...paused]
+            .map((c) => {
+              const durDays = dayCount(c.start, tDate);
+              const remaining = c.end && c.end > tDate ? dayCount(tDate, c.end) - 1 : 0;
+              const totalPlanned = c.end ? dayCount(c.start, c.end) : 0;
+              const pct =
+                totalPlanned > 0 ? Math.min(100, Math.round((durDays / totalPlanned) * 100)) : 100;
+              return `<div class="item">
+                <div class="row between">
+                  <b>${esc(c.name)}</b>
+                  <span class="pill ${c.status}">${c.status === 'paused' ? 'Pausado' : 'Em andamento'}</span>
+                </div>
+                <p><strong>${cycleDuration(c)}</strong> <span class="muted">• desde ${dateFmt(c.start)}</span></p>
+                <div class="cycle-progress" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100" aria-label="Progresso do ciclo ${esc(c.name)}">
+                  <div class="cycle-progress-fill" style="width:${pct}%;"></div>
+                </div>
+                ${remaining > 0 ? `<p class="muted">Faltam ${remaining} dias</p>` : ''}
+                <div class="row">
+                  ${button(c.status === 'paused' ? 'Retomar ciclo' : 'Pausar ciclo', c.status === 'paused' ? 'resume-cycle' : 'pause-cycle', c.id)}
+                  ${button('Ver ciclo', 'set-tab', 'ciclos')}
+                </div>
+              </div>`;
+            })
+            .join('')
+        : emptyState('Nenhum ciclo em andamento ou pausado.', 'Criar ciclo', 'set-tab', 'ciclos')
+    }
+  </div>`;
 }
 
 export function dataPage() {
@@ -321,6 +529,6 @@ export function dataPage() {
               `<div class="item"><div class="row between"><b>${names[t.type] || 'Registro'}: ${esc(t.item.name || t.item.date || 'Sem nome')}</b><span class="muted">${new Date(t.deletedAt).toLocaleDateString('pt-BR')}</span></div><div class="row">${button('Restaurar', 'restore-trash', t.trashId)}${button('Apagar definitivamente', 'delete-trash', t.trashId, 'danger')}</div></div>`,
           )
           .join('')
-      : '<p class="empty">A lixeira está vazia.</p>'
+      : emptyState('A lixeira está vazia.')
   }</div><div class="panel"><h2>Dados no aparelho</h2><p class="muted">${supabaseUser ? 'Os registros ficam salvos neste navegador e também na sua conta na nuvem.' : 'Os registros ficam salvos neste navegador. Ative a conta na nuvem acima para ter cópia online.'}</p><div class="row">${button('Verificar integridade', 'verify-local')}</div></div>`;
 }

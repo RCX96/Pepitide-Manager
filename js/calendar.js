@@ -2,6 +2,37 @@ import { db, suppressHomeCalendar } from './state.js';
 import { render } from './ui.js';
 import { $, dateFmt, esc, today, uniqueCompoundNames } from './util.js';
 
+/** Hash estável nome → índice 0-7 → variável CSS --c1..--c8 */
+export function compoundColorVar(name) {
+  let h = 0;
+  const s = String(name).toLocaleLowerCase('pt-BR');
+  for (let i = 0; i < s.length; i++) {
+    h = (Math.imul(31, h) + s.charCodeAt(i)) | 0;
+  }
+  return `var(--c${(Math.abs(h) % 8) + 1})`;
+}
+
+/** Renderiza pontos coloridos (mobile ≤480px) ou pílulas texto (>480px)
+ *  num contêiner já inserido no DOM. */
+export function renderCompoundMarkers(container, names, isMobile) {
+  if (isMobile) {
+    const show = names.length > 3 ? names.slice(0, 2) : names.slice(0, 3);
+    const extra = names.length - show.length;
+    const dots = show
+      .map(
+        (n) =>
+          `<span class="cal-dot" style="background:${compoundColorVar(n)}" title="${esc(n)}"></span>`,
+      )
+      .join('');
+    const extraSpan = extra > 0 ? `<span class="cal-dot-extra">+${extra}</span>` : '';
+    container.innerHTML = `<span class="cal-dots">${dots}${extraSpan}</span>`;
+  } else {
+    container.innerHTML = names
+      .map((n) => `<span style="background:${compoundColorVar(n)}">${esc(n)}</span>`)
+      .join('');
+  }
+}
+
 export function compoundsOnDate(date) {
   return uniqueCompoundNames(
     db.applications
@@ -15,6 +46,7 @@ export function decorateCalendarCompounds() {
   if (!app || typeof app.querySelectorAll !== 'function') {
     return;
   }
+  const isMobile = window.matchMedia?.('(max-width: 480px)').matches;
   app.querySelectorAll('.calendar-day').forEach((day) => {
     const date = day.getAttribute('data-id');
     const summary = day.querySelector('.calendar-count');
@@ -22,14 +54,64 @@ export function decorateCalendarCompounds() {
       return;
     }
     const names = compoundsOnDate(date);
-    summary.innerHTML = names.length
-      ? names.map((name) => `<span class="calendar-compound">${esc(name)}</span>`).join('')
-      : '<span class="calendar-compound empty">Sem composto</span>';
+    if (names.length) {
+      if (isMobile) {
+        const show = names.length > 3 ? names.slice(0, 2) : names.slice(0, 3);
+        const extra = names.length - show.length;
+        const dots = show
+          .map(
+            (n) =>
+              `<span class="cal-dot" style="background:${compoundColorVar(n)}" title="${esc(n)}"></span>`,
+          )
+          .join('');
+        const extraSpan = extra > 0 ? `<span class="cal-dot-extra">+${extra}</span>` : '';
+        summary.innerHTML = `<span class="cal-dots">${dots}${extraSpan}</span>`;
+      } else {
+        summary.innerHTML = names
+          .map(
+            (name) =>
+              `<span class="calendar-compound" style="background:${compoundColorVar(name)}">${esc(name)}</span>`,
+          )
+          .join('');
+      }
+    } else {
+      summary.innerHTML = '';
+    }
     day.setAttribute(
       'aria-label',
       `${dateFmt(date)}: ${names.length ? names.join(', ') : 'Nenhum composto'}`,
     );
   });
+
+  // legenda dos compostos visíveis no período
+  const calPanel = app.querySelector('.panel');
+  if (calPanel) {
+    const visibleDates = [...app.querySelectorAll('.calendar-day[data-id]')].map((d) =>
+      d.getAttribute('data-id'),
+    );
+    const seenNames = new Map();
+    for (const date of visibleDates) {
+      for (const name of compoundsOnDate(date)) {
+        if (!seenNames.has(name)) {
+          seenNames.set(name, compoundColorVar(name));
+        }
+      }
+    }
+    const existing = calPanel.querySelector('.cal-legend');
+    if (existing) {
+      existing.remove();
+    }
+    if (seenNames.size) {
+      const legendHTML = `<div class="cal-legend">${[...seenNames.entries()]
+        .map(
+          ([name, color]) =>
+            `<span class="cal-legend-item"><span class="cal-legend-dot" style="background:${color}"></span>${esc(name)}</span>`,
+        )
+        .join('')}</div>`;
+      calPanel.insertAdjacentHTML('beforeend', legendHTML);
+    }
+  }
+
   const selected = app.querySelector('.calendar-day.selected');
   const grid = selected?.closest('.calendar-grid');
   if (selected && grid && window.matchMedia?.('(max-width: 700px)').matches) {
@@ -160,9 +242,26 @@ export function homeCalendar() {
       }
     }
     const number = String(d).padStart(2, '0');
-    const compounds = names.length
-      ? `<span class="cal-compounds">${names.map((n) => `<span>${esc(n)}</span>`).join('')}</span>`
-      : '';
+    const isMobile = window.matchMedia?.('(max-width: 480px)').matches;
+    let compounds = '';
+    if (names.length) {
+      if (isMobile) {
+        const show = names.length > 3 ? names.slice(0, 2) : names.slice(0, 3);
+        const extra = names.length - show.length;
+        const dots = show
+          .map(
+            (n) =>
+              `<span class="cal-dot" style="background:${compoundColorVar(n)}" title="${esc(n)}"></span>`,
+          )
+          .join('');
+        const extraSpan = extra > 0 ? `<span class="cal-dot-extra">+${extra}</span>` : '';
+        compounds = `<span class="cal-dots">${dots}${extraSpan}</span>`;
+      } else {
+        compounds = `<span class="cal-compounds">${names
+          .map((n) => `<span style="background:${compoundColorVar(n)}">${esc(n)}</span>`)
+          .join('')}</span>`;
+      }
+    }
     cells += `
       <button class="cal-cell" data-action="quick-register-date" data-id="${date}" aria-label="${names.length ? `${dateFmt(date)}: ${names.join(', ')}` : `Registrar aplicação em ${dateFmt(date)}`} ">
         <span class="cal-day-number">${number}</span>
