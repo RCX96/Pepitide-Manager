@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## 2.36.1
+
+- **Aplicações:** o botão do histórico vazio abre o formulário, e a navegação de volta encerra a
+  edição sem duplicar registros.
+- **Calendário:** tocar em um dia abre o formulário com a data selecionada.
+- **Salvamento:** se a gravação falhar, o formulário mantém os dados para uma nova tentativa.
+
 ## 2.36
 
 - **Aplicações:** o formulário saiu da página e passa a abrir somente em popup. O botão "Nova
