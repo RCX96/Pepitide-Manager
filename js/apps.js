@@ -149,12 +149,7 @@ export function applicationListHTML() {
     .slice()
     .sort((x, y) => y.date.localeCompare(x.date));
   if (!visible.length) {
-    return emptyState(
-      'Nenhuma aplicação registrada.',
-      'Registrar a primeira aplicação',
-      'set-tab',
-      'aplicacoes',
-    );
+    return emptyState('Nenhuma aplicação registrada.', 'Registrar a primeira aplicação', 'new-app');
   }
   return visible
     .map(
@@ -175,7 +170,7 @@ export function appFormHTML() {
     )
     .join(
       '',
-    )}</select>${compoundNameList()}<div id="compoundList">${compoundFields()}</div>${button('+ Adicionar composto', 'add-compound')}<label for="appNotes">Observações</label><textarea id="appNotes" name="notes" placeholder="Observações opcionais">${esc(a?.notes || '')}</textarea><div class="row actions"><button class="primary" type="submit">${a ? 'Salvar alterações' : 'Salvar aplicação'}</button>${a ? button('Cancelar', 'cancel-app') : ''}</div></form></div>`;
+    )}</select>${compoundNameList()}<div id="compoundList">${compoundFields()}</div>${button('+ Adicionar composto', 'add-compound')}<label for="appNotes">Observações</label><textarea id="appNotes" name="notes" placeholder="Observações opcionais">${esc(a?.notes || '')}</textarea><p data-save-error role="alert" hidden></p><div class="row actions"><button class="primary" type="submit">${a ? 'Salvar alterações' : 'Salvar aplicação'}</button>${a ? button('Cancelar', 'cancel-app') : ''}</div></form></div>`;
 }
 
 export function applications() {
@@ -213,6 +208,8 @@ export function submitApp(e) {
   e.preventDefault();
   const form = e.target;
   clearFieldErrors(form);
+  const saveError = form.querySelector('[data-save-error]');
+  saveError.hidden = true;
   const f = new FormData(form);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(String(f.get('date')))) {
     setFieldError(form, '[name="date"]', 'Informe uma data válida.');
@@ -251,15 +248,23 @@ export function submitApp(e) {
     compounds: compounds.map((c) => ({ ...c, dose: Number(c.dose) })),
     updatedAt: new Date().toISOString(),
   };
-  if (editing) {
-    db.applications = db.applications.map((a) => (a.id === editing ? item : a));
-  } else {
-    db.applications.push(item);
-  }
+  const previousApplications = db.applications;
+  const previousCatalog = db.compoundCatalog;
+  db.applications = editing
+    ? previousApplications.map((a) => (a.id === editing ? item : a))
+    : [...previousApplications, item];
   rememberCompoundNames(compounds.map((c) => c.name));
+  if (!save({ renderPage: false })) {
+    db.applications = previousApplications;
+    db.compoundCatalog = previousCatalog;
+    saveError.textContent =
+      'Não foi possível salvar a aplicação. Seus dados continuam no formulário.';
+    saveError.hidden = false;
+    return;
+  }
   updateEditing(null);
   updateAppDraft(null);
   updateCompounds([{ name: '', dose: '', unit: 'mg' }]);
-  save();
   form.closest('dialog')?.close();
+  render();
 }

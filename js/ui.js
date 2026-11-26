@@ -234,6 +234,7 @@ export const VALID_TABS = ['inicio', 'aplicacoes', 'ciclos', 'relatorios', 'conf
 
 export function setTab(t, pushHistory = true) {
   const next = VALID_TABS.includes(t) ? t : 'inicio';
+  $('appFormDialog')?.close();
   updateTab(next);
   updateEditing(null);
   render();

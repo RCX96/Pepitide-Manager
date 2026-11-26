@@ -88,10 +88,15 @@ export async function handleAction(e) {
     case 'quick-register':
       quickRegister();
       break;
+    case 'cal-select':
     case 'quick-register-date': {
       const date = id;
       if (!date) {
         return;
+      }
+      if (action === 'cal-select') {
+        calSelect(date);
+        document.querySelector('.calendar-day.selected')?.focus({ preventScroll: true });
       }
       updateEditing(null);
       updateAppDraft({
@@ -233,11 +238,6 @@ export async function handleAction(e) {
     case 'cal-view':
       if (id) {
         calSetView(id);
-      }
-      break;
-    case 'cal-select':
-      if (id) {
-        calSelect(id);
       }
       break;
     case 'report-set':

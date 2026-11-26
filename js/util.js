@@ -13,34 +13,39 @@ export const $ = (id) => document.getElementById(id),
 
 export const today = () => new Date().toLocaleDateString('en-CA');
 
-export const save = () => {
+export const save = ({ renderPage = true } = {}) => {
   if (loadError) {
     showToast('Gravação bloqueada: os dados locais precisam ser recuperados antes de continuar.');
-    return;
+    return false;
   }
   try {
     validateBackup(db);
     localStorage.setItem(KEY, JSON.stringify(db));
-    scheduleCloudSync();
-    render();
-    if (!localStorage.getItem('peptide-storage-persist-requested')) {
-      try {
-        if (navigator.storage && navigator.storage.persist) {
-          navigator.storage.persist().catch(() => {});
-        }
-        localStorage.setItem('peptide-storage-persist-requested', '1');
-      } catch {
-        /* ignora */
-      }
-    }
   } catch (e) {
     showToast(
       'Não foi possível salvar com segurança: ' +
         e.message +
-        '\nOs dados persistidos não foram substituídos. Recarregue o aplicativo para recuperar o último estado salvo.',
+        '\nOs dados persistidos não foram substituídos.',
     );
     console.error(e);
+    return false;
   }
+
+  scheduleCloudSync();
+  if (renderPage) {
+    render();
+  }
+  try {
+    if (!localStorage.getItem('peptide-storage-persist-requested')) {
+      if (navigator.storage && navigator.storage.persist) {
+        navigator.storage.persist().catch(() => {});
+      }
+      localStorage.setItem('peptide-storage-persist-requested', '1');
+    }
+  } catch {
+    /* ignora */
+  }
+  return true;
 };
 
 export const dateFmt = (s) => (s ? new Date(s + 'T12:00:00').toLocaleDateString('pt-BR') : '—');
