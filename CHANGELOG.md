@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## 2.38.2
+
+- **Atualização do app:** o carregamento espera o cache da nova versão para evitar a mistura de
+  módulos antigos e novos. O aplicativo continua disponível offline após a instalação.
+
 ## 2.38.1
 
 - **Ciclos:** permite remover uma pausa lançada por engano após confirmar o período.

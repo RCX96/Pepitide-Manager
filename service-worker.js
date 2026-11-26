@@ -1,10 +1,11 @@
-const CACHE_VERSION = '2.38.1';
+const CACHE_VERSION = '2.38.2';
 const CACHE_NAME = 'peptide-manager-shell-v' + CACHE_VERSION;
 const ASSETS = [
   './',
   './index.html',
   './manifest.webmanifest',
   './styles.css',
+  './styles.css?v=' + CACHE_VERSION,
   './fonts/inter-latin-400-normal.woff2',
   './fonts/inter-latin-600-normal.woff2',
   './fonts/inter-latin-700-normal.woff2',
@@ -25,12 +26,18 @@ const ASSETS = [
   './js/sync.js',
   './js/backup.js',
   './js/reports.js',
-  './js/main.js',
+  './js/main.js?v=' + CACHE_VERSION,
+  './js/bootstrap.js?v=' + CACHE_VERSION,
 ];
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS)));
-  self.skipWaiting();
+  event.waitUntil(
+    (async () => {
+      const cache = await caches.open(CACHE_NAME);
+      await cache.addAll(ASSETS.map((asset) => new Request(asset, { cache: 'reload' })));
+      await self.skipWaiting();
+    })(),
+  );
 });
 
 self.addEventListener('activate', (event) => {
@@ -89,7 +96,14 @@ async function staleWhileRevalidate(request) {
 self.addEventListener('fetch', (event) => {
   const request = event.request;
   if (request.method !== 'GET' || new URL(request.url).origin !== self.location.origin) return;
-  event.respondWith(
-    request.mode === 'navigate' ? networkFirst(request) : staleWhileRevalidate(request),
-  );
+  if (request.mode === 'navigate') {
+    event.respondWith(networkFirst(request));
+  } else if (['script', 'style'].includes(request.destination)) {
+    // O código pré-carregado pertence à mesma versão do worker.
+    event.respondWith(
+      caches.open(CACHE_NAME).then(async (cache) => (await cache.match(request)) || fetch(request)),
+    );
+  } else {
+    event.respondWith(staleWhileRevalidate(request));
+  }
 });

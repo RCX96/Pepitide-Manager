@@ -492,31 +492,3 @@ render();
 syncNav();
 setupCloudResumeSync();
 initSupabase();
-// A instalação PWA só funciona em HTTPS ou localhost. O arquivo HTML isolado permanece utilizável.
-if (
-  'serviceWorker' in navigator &&
-  (location.protocol === 'https:' ||
-    location.hostname === 'localhost' ||
-    location.hostname === '127.0.0.1')
-) {
-  window.addEventListener('load', () =>
-    navigator.serviceWorker
-      .register('./service-worker.js')
-      .catch((err) => console.warn('Modo offline indisponível:', err)),
-  );
-  // Avisa quando uma versão nova assumiu o controle, em vez de trocar o app em silêncio.
-  const hadController = Boolean(navigator.serviceWorker.controller);
-  navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (!hadController || document.getElementById('updateBanner')) {
-      return;
-    }
-    const bar = document.createElement('div');
-    bar.id = 'updateBanner';
-    bar.className = 'update-banner';
-    bar.setAttribute('role', 'status');
-    bar.innerHTML =
-      '<span>Nova versão disponível.</span><button type="button" class="primary">Atualizar</button>';
-    bar.querySelector('button').addEventListener('click', () => location.reload());
-    document.body.appendChild(bar);
-  });
-}
