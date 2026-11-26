@@ -177,7 +177,12 @@ export function mergeDb(local, cloud) {
       trashMap.set(t.trashId, t);
     }
   }
-  result.trash = Array.from(trashMap.values());
+  result.trash = Array.from(trashMap.values()).filter(
+    (entry) =>
+      !result[entry.type]?.some(
+        (record) => record.id === entry.item.id && (record.updatedAt || '') > entry.deletedAt,
+      ),
+  );
 
   result.compoundCatalog = uniqueCompoundNames([
     ...(local.compoundCatalog || []),

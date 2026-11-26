@@ -218,11 +218,11 @@ export function reportsLegacy() {
   </div>
   ${chartsHTML}
   <div class="report-tables">
-    <details class="panel report-section" open>
+    <details class="panel report-section" data-details-key="report-applications" open>
       <summary>Aplicações</summary>
       ${reportTable(['Data', 'Hora', 'Ciclo', 'Compostos e doses', 'Observações'], reportAppRows(apps))}
     </details>
-    <details class="panel report-section" open>
+    <details class="panel report-section" data-details-key="report-cycles" open>
       <summary>Ciclos</summary>
       ${reportTable(['Nome', 'Início', 'Fim', 'Estado', 'Dias ativos', 'Aplicações vinculadas'], reportCycleRows(cycles))}
     </details>
@@ -232,11 +232,17 @@ export function reports() {
   return reportsLegacy();
 }
 
+const applicationCSVHeaders = ['Data', 'Hora', 'Ciclo', 'Compostos e doses', 'Observações'];
+
+export function exportApplicationHistoryCSV(apps) {
+  downloadCSV('historico-aplicacoes', applicationCSVHeaders, reportAppRows(apps));
+}
+
 export function exportReportCSV(kind) {
   const data = reportFiltered();
   const map = {
     applications: {
-      headers: ['Data', 'Hora', 'Ciclo', 'Compostos e doses', 'Observações'],
+      headers: applicationCSVHeaders,
       rows: reportAppRows(data.apps),
     },
     cycles: {
@@ -252,8 +258,11 @@ export function exportReportCSV(kind) {
   if (!entry) {
     return;
   }
-  const csv =
-    '\ufeff' + [entry.headers, ...entry.rows].map((row) => row.map(csvCell).join(';')).join('\r\n');
+  downloadCSV(kind, entry.headers, entry.rows);
+}
+
+function downloadCSV(kind, headers, rows) {
+  const csv = '\ufeff' + [headers, ...rows].map((row) => row.map(csvCell).join(';')).join('\r\n');
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);

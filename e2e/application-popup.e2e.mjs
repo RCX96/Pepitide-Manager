@@ -240,3 +240,107 @@ test('histórico combina filtros com busca e limpa todos os campos', async ({ pa
     await expect(page.getByLabel(field, { exact: true })).toHaveValue('');
   }
 });
+
+test('edita e duplica pelo calendário, preservando o dia ao recarregar', async ({ page }) => {
+  await page.clock.setFixedTime(new Date('2026-11-22T15:00:00Z'));
+  await seed(page, [original]);
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Mês', exact: true }).click();
+  await page.locator(`.calendar-day[data-id="${date}"]`).click();
+  const list = page.locator('.calendar-list');
+  await list.getByRole('button', { name: 'Editar' }).click();
+  await modal(page).locator('#appNotes').fill('Editado pelo calendário');
+  await submit(page);
+  await expect(list).toContainText('Editado pelo calendário');
+  await list.getByRole('button', { name: 'Duplicar' }).click();
+  await expect(modal(page).locator('#compoundName0')).toHaveValue('Composto A');
+  await modal(page).locator('#appCycle').selectOption('c1d2');
+  await submit(page);
+  await page.reload();
+  await expect(page.locator('.calendar-grid')).not.toHaveClass(/calendar-week-grid/);
+  await expect(page.locator(`.calendar-day[data-id="${date}"]`)).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  await expect(list.locator('.item')).toHaveCount(2);
+  expect((await stored(page)).find((entry) => entry.id === original.id).notes).toBe(
+    'Editado pelo calendário',
+  );
+});
+
+test('desfaz a exclusão e restaura o ID original após recarregar', async ({ page }) => {
+  await seed(page, [original]);
+  await page.goto('/?tab=aplicacoes');
+  await row(page).getByRole('button', { name: 'Excluir' }).click();
+  await page.locator('#confirmYes').click();
+  expect(await stored(page)).toHaveLength(0);
+  await page.getByRole('button', { name: 'Desfazer' }).click();
+  await expect(page.getByText('Registro restaurado.')).toBeVisible();
+  await page.reload();
+  expect(await stored(page)).toMatchObject([original]);
+  const { trash, deleted } = await page.evaluate(
+    (key) => JSON.parse(localStorage.getItem(key)),
+    key,
+  );
+  expect(trash).toHaveLength(0);
+  expect(deleted).toHaveLength(0);
+});
+
+test('abre o histórico do ciclo, exporta somente a lista filtrada e mantém preferências', async ({
+  page,
+}) => {
+  await seed(page, [
+    original,
+    { ...original, id: 'a3', date: '2026-11-21', notes: 'Anterior no ciclo' },
+    { ...original, id: 'a4', cycleId: null, notes: 'Fora do ciclo' },
+  ]);
+  await page.goto('/?tab=ciclos');
+  await expect(
+    page.getByText('Primeira aplicação: 21/11/2026 • Última aplicação: 22/11/2026'),
+  ).toBeVisible();
+  await page.getByRole('button', { name: 'Ver aplicações' }).click();
+  await expect(page.getByLabel('Ciclo', { exact: true })).toHaveValue('c1d2');
+  const csv = page.getByRole('button', { name: 'Exportar CSV (2)', exact: true });
+  const [download] = await Promise.all([page.waitForEvent('download'), csv.click()]);
+  const { readFile } = await import('node:fs/promises');
+  const content = await readFile(await download.path(), 'utf8');
+  expect(content).toContain('Anterior no ciclo');
+  expect(content).toContain('Nota original');
+  expect(content).not.toContain('Fora do ciclo');
+  const history = page.locator('.history-panel');
+  await history.locator('summary').click();
+  await expect(history).not.toHaveAttribute('open');
+  await page.reload();
+  await expect(history).not.toHaveAttribute('open');
+  await expect(page.getByLabel('Ciclo', { exact: true })).toHaveValue('c1d2');
+  await expect(csv).toBeVisible();
+});
+
+test('mostra detalhes da sincronização e permite tentar novamente', async ({ page }) => {
+  await page.goto('/');
+  await page.evaluate(async () => {
+    const state = await import('/js/state.js');
+    const { syncHeader } = await import('/js/ui.js');
+    const { cloudHooks, clearPendingPush, markPendingPush } = await import('/js/sync.js');
+    state.updateSupabaseClient({});
+    state.updateSupabaseUser({ id: 'test', email: 'test@example.com' });
+    state.updateSupabaseLastSync('16:30');
+    state.updateSupabaseSyncStatus('Alterações pendentes');
+    markPendingPush();
+    cloudHooks.pushToCloud = async () => {
+      clearPendingPush();
+      state.updateSupabaseSyncStatus('Sincronizado');
+      state.updateSupabaseLastSync('16:31');
+      return true;
+    };
+    cloudHooks.pullFromCloud = async () => {};
+    syncHeader();
+  });
+  await page.getByRole('button', { name: 'Pendente', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Sincronização' });
+  await expect(dialog).toContainText('16:30');
+  await expect(dialog).toContainText('1 envio pendente');
+  await dialog.getByRole('button', { name: 'Sincronizar agora' }).click();
+  await expect(dialog).toContainText('16:31');
+  await expect(dialog).toContainText('Nenhum envio pendente');
+});

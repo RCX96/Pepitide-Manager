@@ -1,4 +1,4 @@
-import { applications } from './apps.js';
+import { applications, filteredApplications } from './apps.js';
 import { backupStatusText } from './backup.js';
 import { calendarPage, compoundColorVar, decorateCalendarCompounds } from './calendar.js';
 import { cycles } from './cycles.js';
@@ -11,6 +11,10 @@ import {
   db,
   historyCompound,
   loadError,
+  readViewPreference,
+  supabaseLastSync,
+  supabaseSyncError,
+  updateDb,
   supabaseSyncStatus,
   supabaseUser,
   tab,
@@ -19,7 +23,7 @@ import {
   updateSuppressHomeCalendar,
   updateTab,
 } from './state.js';
-import { cloudSyncPanel } from './sync.js';
+import { cloudSyncPanel, hasPendingPush } from './sync.js';
 import {
   $,
   compoundHistory,
@@ -69,7 +73,7 @@ export function setTheme(theme) {
   render();
 }
 
-export function showToast(text, type = 'info') {
+export function showToast(text, type = 'info', undoTrashId = '') {
   let toast = document.querySelector('.toast');
   if (toast) {
     toast.remove();
@@ -79,11 +83,17 @@ export function showToast(text, type = 'info') {
   toast.setAttribute('role', type === 'error' ? 'alert' : 'status');
   toast.setAttribute('aria-live', type === 'error' ? 'assertive' : 'polite');
   toast.textContent = text;
+  if (undoTrashId) {
+    toast.insertAdjacentHTML('beforeend', button('Desfazer', 'undo-delete', undoTrashId));
+  }
   document.body.appendChild(toast);
-  setTimeout(() => {
-    toast.classList.add('fade-out');
-    setTimeout(() => toast.remove(), 300);
-  }, 4000);
+  setTimeout(
+    () => {
+      toast.classList.add('fade-out');
+      setTimeout(() => toast.remove(), 300);
+    },
+    undoTrashId ? 10000 : 4000,
+  );
 }
 
 export function clearFieldErrors(form) {
@@ -283,6 +293,10 @@ export function syncHeader() {
     };
     sub.textContent = titles[tab] || '';
   }
+  const syncDetails = $('syncDetailsContent');
+  if (syncDetails) {
+    syncDetails.innerHTML = syncDetailsHTML();
+  }
   const statusEl = $('headerSyncStatus');
   if (statusEl) {
     if (supabaseUser) {
@@ -292,21 +306,37 @@ export function syncHeader() {
       if (/sincronizando|carregando/i.test(raw)) {
         state = 'syncing';
         label = 'Sincronizando';
-      } else if (/pendente/i.test(raw)) {
+      } else if (/erro/i.test(raw)) {
+        state = 'error';
+        label = 'Erro';
+      } else if (hasPendingPush() || /pendente/i.test(raw)) {
         state = 'pending';
         label = 'Pendente';
       } else if (/offline/i.test(raw)) {
         state = 'offline';
         label = 'Offline';
-      } else if (/erro/i.test(raw)) {
-        state = 'error';
-        label = 'Erro';
       }
-      statusEl.innerHTML = `<span class="sync-indicator ${state}"><span class="sync-dot"></span><span class="sync-text">${label}</span></span>`;
+      statusEl.innerHTML = `<button type="button" class="sync-indicator ${state}" data-action="sync-details" aria-haspopup="dialog"><span class="sync-dot"></span><span class="sync-text">${label}</span></button>`;
     } else {
       statusEl.innerHTML = '';
     }
   }
+}
+
+function syncDetailsHTML() {
+  return `<p>Última sincronização: ${esc(supabaseLastSync || 'Ainda não realizada')}</p>
+    <p role="status">${hasPendingPush() ? '1 envio pendente' : 'Nenhum envio pendente'}${supabaseSyncStatus ? ' • ' + esc(supabaseSyncStatus) : ''}</p>
+    ${supabaseSyncError ? `<p>${esc(supabaseSyncError)}</p>` : ''}`;
+}
+
+export function showSyncDetails() {
+  const dialog = document.createElement('dialog');
+  dialog.setAttribute('aria-labelledby', 'syncDetailsTitle');
+  dialog.innerHTML = `<h2 id="syncDetailsTitle">Sincronização</h2><div id="syncDetailsContent">${syncDetailsHTML()}</div>
+    <div class="row">${button('Sincronizar agora', 'cloud-sync')}<form method="dialog"><button>Fechar</button></form></div>`;
+  dialog.addEventListener('close', () => dialog.remove(), { once: true });
+  document.body.appendChild(dialog);
+  dialog.showModal();
 }
 
 export function extraPanels() {
@@ -326,7 +356,8 @@ export function extraPanels() {
         return `<option value="${esc(key)}" ${key === compound ? 'selected' : ''}>${esc(name)}</option>`;
       })
       .join('');
-    return `<div id="applicationFilters" class="panel quick-filter"><h2>Buscar aplicações</h2><label class="sr-only" for="applicationSearch">Buscar aplicações</label><input id="applicationSearch" type="search" aria-label="Buscar aplicações" value="${esc(applicationFilter)}" placeholder="Composto, data ou observação" data-filter="apps"><div class="two"><div><label for="applicationCycleFilter">Ciclo</label><select id="applicationCycleFilter" data-app-history-filter="cycle"><option value="">Todos os ciclos</option>${cycleOptions}</select></div><div><label for="applicationCompoundFilter">Composto</label><select id="applicationCompoundFilter" data-app-history-filter="compound"><option value="">Todos os compostos</option>${compoundOptions}</select></div></div><div class="two"><div><label for="applicationFromFilter">De</label><input id="applicationFromFilter" type="date" value="${esc(from)}" data-app-history-filter="from"></div><div><label for="applicationToFilter">Até</label><input id="applicationToFilter" type="date" value="${esc(to)}" data-app-history-filter="to"></div></div>${button('Limpar filtros', 'clear-app-filters')}</div>`;
+    const count = filteredApplications().length;
+    return `<div id="applicationFilters" class="panel quick-filter"><h2>Buscar aplicações</h2><label class="sr-only" for="applicationSearch">Buscar aplicações</label><input id="applicationSearch" type="search" aria-label="Buscar aplicações" value="${esc(applicationFilter)}" placeholder="Composto, data ou observação" data-filter="apps"><div class="two"><div><label for="applicationCycleFilter">Ciclo</label><select id="applicationCycleFilter" data-app-history-filter="cycle"><option value="">Todos os ciclos</option>${cycleOptions}</select></div><div><label for="applicationCompoundFilter">Composto</label><select id="applicationCompoundFilter" data-app-history-filter="compound"><option value="">Todos os compostos</option>${compoundOptions}</select></div></div><div class="two"><div><label for="applicationFromFilter">De</label><input id="applicationFromFilter" type="date" value="${esc(from)}" data-app-history-filter="from"></div><div><label for="applicationToFilter">Até</label><input id="applicationToFilter" type="date" value="${esc(to)}" data-app-history-filter="to"></div></div><div class="row">${button('Limpar filtros', 'clear-app-filters')}<button type="button" data-action="export-application-history" ${count ? '' : 'disabled'}>Exportar CSV (${count})</button></div></div>`;
   }
   if (tab === 'configuracoes') {
     const names = rememberedCompoundNames().filter(
@@ -366,7 +397,7 @@ export function animateRender(isTabChange = false) {
 export function applicationsExtraPanel() {
   const names = rememberedCompoundNames();
   const history = historyCompound ? compoundHistory(historyCompound) : [];
-  return `<div class="panel compound-history-panel"><details ${historyCompound ? 'open' : ''}><summary>Histórico por composto</summary><label for="historyCompound">Composto</label><select id="historyCompound" aria-label="Filtrar histórico por composto" data-change="history-compound"><option value="">Escolha um composto</option>${names.map((n) => `<option value="${esc(n)}" ${historyCompound === n ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select>${historyCompound ? (history.length ? history.map((a) => `<div class="item"><b>${dateFmt(a.date)} ${esc(a.time || '')}</b><p>${a.compounds.map((c) => `${esc(c.name)} (${esc(c.dose)} ${esc(c.unit)})`).join(' + ')}</p></div>`).join('') : emptyState('Nenhum registro para este composto.')) : emptyState('Escolha um composto para ver o histórico.')}</details></div>`;
+  return `<div class="panel compound-history-panel"><details data-details-key="compound-history" ${historyCompound ? 'open' : ''}><summary>Histórico por composto</summary><label for="historyCompound">Composto</label><select id="historyCompound" aria-label="Filtrar histórico por composto" data-change="history-compound"><option value="">Escolha um composto</option>${names.map((n) => `<option value="${esc(n)}" ${historyCompound === n ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select>${historyCompound ? (history.length ? history.map((a) => `<div class="item"><b>${dateFmt(a.date)} ${esc(a.time || '')}</b><p>${a.compounds.map((c) => `${esc(c.name)} (${esc(c.dose)} ${esc(c.unit)})`).join(' + ')}</p></div>`).join('') : emptyState('Nenhum registro para este composto.')) : emptyState('Escolha um composto para ver o histórico.')}</details></div>`;
 }
 
 export function encryptedBackupPanel() {
@@ -436,6 +467,9 @@ export function render() {
       }
     }
   }
+  for (const details of $('app').querySelectorAll?.('details[data-details-key]') || []) {
+    details.open = readViewPreference(details.dataset.detailsKey, details.open);
+  }
   decorateCalendarCompounds();
   syncHeader();
   syncNav();
@@ -476,31 +510,37 @@ export function confirmDelete(type, id) {
     if (!it) {
       return;
     }
-    db.trash = Array.isArray(db.trash) ? db.trash : [];
+    const before = { ...db };
+    const trashId = uid();
+    const deletedAt = new Date().toISOString();
     const linkedApplicationIds =
       type === 'cycles' ? db.applications.filter((a) => a.cycleId === id).map((a) => a.id) : [];
-    db.trash.push({
-      trashId: uid(),
-      type,
-      deletedAt: new Date().toISOString(),
-      item: JSON.parse(JSON.stringify(it)),
-      ...(type === 'cycles' ? { linkedApplicationIds } : {}),
-    });
-    db.deleted = Array.isArray(db.deleted) ? db.deleted : [];
-    db.deleted.push({ type, id, deletedAt: new Date().toISOString() });
+    db.trash = [
+      ...(db.trash || []),
+      {
+        trashId,
+        type,
+        deletedAt,
+        item: JSON.parse(JSON.stringify(it)),
+        ...(type === 'cycles' ? { linkedApplicationIds } : {}),
+      },
+    ];
+    db.deleted = [...(db.deleted || []), { type, id, deletedAt }];
     if (db.deleted.length > 5000) {
       db.deleted = db.deleted.slice(db.deleted.length - 5000);
     }
     db[type] = db[type].filter((x) => x.id !== id);
     if (type === 'cycles') {
-      db.applications.forEach((a) => {
-        if (a.cycleId === id) {
-          a.cycleId = null;
-        }
-      });
+      db.applications = db.applications.map((a) =>
+        a.cycleId === id ? { ...a, cycleId: null, updatedAt: deletedAt } : a,
+      );
     }
     $('confirmDialog').close();
-    save();
+    if (save()) {
+      showToast('Registro excluído.', 'info', trashId);
+    } else {
+      updateDb(before);
+    }
   };
   $('confirmDialog').showModal();
 }

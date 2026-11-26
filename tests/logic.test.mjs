@@ -730,3 +730,24 @@ test('mergeDb remove registro com tombstone mais recente', async () => {
   const merged = app.mergeDb(local, { applications: [], cycles: [], weights: [] });
   assert.equal(merged.applications.length, 0);
 });
+
+test('mergeDb não devolve à lixeira um registro restaurado', () => {
+  const item = {
+    id: 'a1',
+    date: '2026-11-01',
+    updatedAt: '2026-11-01T10:00:00.000Z',
+    compounds: [{ name: 'A', dose: 1, unit: 'mg' }],
+  };
+  const deletedAt = '2026-11-02T10:00:00.000Z';
+  const restored = { ...item, updatedAt: '2026-11-02T10:00:00.001Z' };
+  const merged = app.mergeDb(
+    { applications: [restored] },
+    {
+      applications: [],
+      deleted: [{ type: 'applications', id: item.id, deletedAt }],
+      trash: [{ trashId: 't1', type: 'applications', item, deletedAt }],
+    },
+  );
+  assert.equal(merged.applications[0].id, item.id);
+  assert.equal(merged.trash.length, 0);
+});

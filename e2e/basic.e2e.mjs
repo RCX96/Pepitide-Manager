@@ -20,7 +20,7 @@ test('cria um ciclo e registra uma aplicação', async ({ page }) => {
   await page.locator('input[name="name"]').fill('Ciclo E2E');
   await page.getByRole('button', { name: 'Salvar ciclo' }).click();
   await expect(page.getByText('Ciclo E2E')).toBeVisible();
-  await page.getByRole('button', { name: 'APLICAÇÕES' }).click();
+  await page.getByRole('button', { name: 'APLICAÇÕES', exact: true }).click();
   await page.getByRole('button', { name: 'Nova aplicação' }).click();
   const dialog = page.locator('dialog#appFormDialog');
   await dialog.locator('#compoundName0').fill('Semaglutida');
@@ -33,7 +33,7 @@ test('cria um ciclo e registra uma aplicação', async ({ page }) => {
 
 test('busca sem perder o foco', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: 'APLICAÇÕES' }).click();
+  await page.getByRole('button', { name: 'APLICAÇÕES', exact: true }).click();
   const search = page.locator('#applicationSearch');
   await search.click();
   await search.type('sema');

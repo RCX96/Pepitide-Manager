@@ -1,6 +1,6 @@
 import { validateBackup } from './backup.js';
 
-export let historyCompound = '';
+export let historyCompound = readViewPreference('history-compound', '');
 export let reportFrom = '',
   reportTo = '',
   reportCycle = 'all';
@@ -103,12 +103,30 @@ try {
 }
 /* exported submitApp, submitCycle, setApplicationFilter, homeCalendar, lastCompoundEntry, reminderMatchesDate */
 
+export function readViewPreference(name, fallback) {
+  try {
+    return JSON.parse(localStorage.getItem('peptide-view-' + name)) ?? fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+export function writeViewPreference(name, value) {
+  try {
+    localStorage.setItem('peptide-view-' + name, JSON.stringify(value));
+  } catch {
+    // A interface continua funcionando sem armazenamento disponível.
+  }
+}
+
+const emptyHistoryFilters = { cycle: '', compound: '', from: '', to: '' };
+
 export let tab = 'inicio',
   editing = null,
   appDraft = null,
   compounds = [{ name: '', dose: '', unit: 'mg' }],
-  applicationFilter = '',
-  applicationHistoryFilters = { cycle: '', compound: '', from: '', to: '' },
+  applicationFilter = readViewPreference('search', ''),
+  applicationHistoryFilters = { ...emptyHistoryFilters, ...readViewPreference('history', {}) },
   catalogFilter = '',
   suppressHomeCalendar = false,
   supabaseClient = null,
@@ -147,9 +165,11 @@ export function updateCompounds(v) {
 }
 export function updateApplicationFilter(v) {
   applicationFilter = v;
+  writeViewPreference('search', v);
 }
 export function updateApplicationHistoryFilters(filters) {
   applicationHistoryFilters = filters;
+  writeViewPreference('history', filters);
 }
 export function updateCatalogFilter(v) {
   catalogFilter = v;
@@ -180,6 +200,7 @@ export function updateUnlocked(v) {
 }
 export function updateHistoryCompound(v) {
   historyCompound = v;
+  writeViewPreference('history-compound', v);
 }
 export function updateReportFrom(v) {
   reportFrom = v;

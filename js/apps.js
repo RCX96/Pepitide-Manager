@@ -67,6 +67,12 @@ export function clearApplicationFilters() {
 }
 
 function refreshApplicationHistory() {
+  const exportButton = document.querySelector('[data-action="export-application-history"]');
+  if (exportButton) {
+    const count = filteredApplications().length;
+    exportButton.textContent = `Exportar CSV (${count})`;
+    exportButton.disabled = count === 0;
+  }
   const el = document.getElementById('applicationList');
   if (el) {
     el.innerHTML = applicationListHTML();
@@ -206,7 +212,7 @@ export function appFormHTML() {
 }
 
 export function applications() {
-  return `<h1>Aplicações</h1><button type="button" class="primary new-app-button" data-action="new-app">+ Nova aplicação</button><details class="panel history-panel" open><summary>Histórico de aplicações</summary><div id="applicationList">${applicationListHTML()}</div></details>`;
+  return `<h1>Aplicações</h1><button type="button" class="primary new-app-button" data-action="new-app">+ Nova aplicação</button><details class="panel history-panel" data-details-key="application-history" open><summary>Histórico de aplicações</summary><div id="applicationList">${applicationListHTML()}</div></details>`;
 }
 
 export function showAppDialog() {

@@ -3,12 +3,12 @@ import { markPendingPush, scheduleCloudSync } from './sync.js';
 import { confirmDialog, promptDialog, render, showToast, syncNav } from './ui.js';
 import { $, base64ToBytes, bytesToBase64, esc, save, strictDate, today } from './util.js';
 
-export async function restoreTrash(id) {
+export async function restoreTrash(id, { confirm = true } = {}) {
+  if (confirm && !(await confirmDialog('', 'Restaurar este registro da lixeira?'))) {
+    return false;
+  }
   const entry = (db.trash || []).find((x) => x.trashId === id);
   if (!entry) {
-    return;
-  }
-  if (!(await confirmDialog('', 'Restaurar este registro da lixeira?'))) {
     return;
   }
   const type = entry.type;
@@ -20,17 +20,31 @@ export async function restoreTrash(id) {
     showToast('Já existe um registro com o mesmo identificador.');
     return;
   }
-  db[type].push(item);
+  const before = { ...db };
+  const removedAt = (db.deleted || []).reduce(
+    (latest, record) =>
+      record.type === type && record.id === item.id && record.deletedAt > latest
+        ? record.deletedAt
+        : latest,
+    entry.deletedAt,
+  );
+  item.updatedAt = new Date(Math.max(Date.now(), (Date.parse(removedAt) || 0) + 1)).toISOString();
+  db[type] = [...db[type], item];
+  db.deleted = (db.deleted || []).filter((record) => record.type !== type || record.id !== item.id);
   db.trash = db.trash.filter((x) => x.trashId !== id);
   if (type === 'cycles' && Array.isArray(entry.linkedApplicationIds)) {
-    for (const appId of entry.linkedApplicationIds) {
-      const app = db.applications.find((a) => a.id === appId);
-      if (app && (app.cycleId === null || app.cycleId === undefined)) {
-        app.cycleId = item.id;
-      }
-    }
+    db.applications = db.applications.map((app) =>
+      entry.linkedApplicationIds.includes(app.id) &&
+      (app.cycleId === null || app.cycleId === undefined)
+        ? { ...app, cycleId: item.id, updatedAt: item.updatedAt }
+        : app,
+    );
   }
-  save();
+  if (!save()) {
+    updateDb(before);
+    return false;
+  }
+  return true;
 }
 
 export async function deleteTrash(id) {

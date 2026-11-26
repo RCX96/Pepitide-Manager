@@ -13,7 +13,11 @@ export function cycleDetails(x) {
         `<div class="muted">⏸ ${dateFmt(p.start)} até ${p.end ? dateFmt(p.end) : 'em andamento'}</div>`,
     )
     .join('');
-  const appCount = db.applications.filter((a) => a.cycleId === x.id).length;
+  const applicationDates = db.applications
+    .filter((a) => a.cycleId === x.id)
+    .map((a) => a.date)
+    .sort();
+  const appCount = applicationDates.length;
 
   const durDays = dayCount(x.start, todayDate);
   const remaining = x.end && x.end > todayDate ? dayCount(todayDate, x.end) - 1 : 0;
@@ -31,7 +35,8 @@ export function cycleDetails(x) {
   </div>
   ${remaining > 0 ? `<p class="muted">Faltam ${remaining} dias</p>` : ''}
   <p class="muted">Início: ${dateFmt(x.start)}${x.status === 'finished' && x.end ? ' • Término: ' + dateFmt(x.end) : ''}</p>
-  ${periods ? `<details><summary>Pausas (${(x.pauses || []).length})</summary><div class="item">${periods}</div></details>` : ''}`;
+  ${appCount ? `<p>Primeira aplicação: ${dateFmt(applicationDates[0])} • Última aplicação: ${dateFmt(applicationDates.at(-1))}</p>` : ''}
+  ${periods ? `<details data-details-key="cycle-pauses-${esc(x.id)}"><summary>Pausas (${(x.pauses || []).length})</summary><div class="item">${periods}</div></details>` : ''}`;
 }
 
 export function renderCycleCard(x) {
@@ -45,6 +50,7 @@ export function renderCycleCard(x) {
     ${cycleDetails(x)}
     <p>${esc(x.notes || '')}</p>
     <div class="row">
+      ${button('Ver aplicações', 'cycle-history', x.id)}
       ${button('Editar', 'edit-cycle', x.id)}
       ${x.status === 'active' ? button('Pausar', 'pause-cycle', x.id) : x.status === 'paused' ? button('Retomar', 'resume-cycle', x.id) : button('Reabrir', 'resume-cycle', x.id)}
       ${x.status !== 'finished' ? button('Finalizar', 'finish-cycle', x.id) : ''}
@@ -67,7 +73,7 @@ export function cycles() {
   } else {
     listHTML = ongoing.map(renderCycleCard).join('');
     if (finished.length) {
-      listHTML += `<details class="finished-cycles">
+      listHTML += `<details class="finished-cycles" data-details-key="finished-cycles">
         <summary>Ciclos finalizados (${finished.length})</summary>
         ${finished.map(renderCycleCard).join('')}
       </details>`;

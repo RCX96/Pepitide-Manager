@@ -1,5 +1,14 @@
 # CHANGELOG
 
+## 2.38
+
+- **Calendário:** edição e duplicação na lista do dia.
+- **Exclusão:** ação Desfazer com recuperação pela lixeira.
+- **Sincronização:** horário, envio pendente, status e nova tentativa no cabeçalho.
+- **Ciclos:** primeira e última aplicação e atalho para o histórico do ciclo.
+- **Histórico:** exportação CSV da lista filtrada, com contagem de registros.
+- **Preferências:** o navegador guarda a seleção do calendário, os filtros e as seções recolhíveis.
+
 ## 2.37
 
 - **Calendário:** tocar em um dia mostra seus registros. O botão Nova aplicação abre o formulário

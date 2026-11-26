@@ -5,6 +5,7 @@ import {
   openAppForm,
   copyApp,
   editApp,
+  filteredApplications,
   quickRegister,
   removeCompound,
   removeCompoundName,
@@ -29,7 +30,7 @@ import {
 import { calMove, calSelect, calSetView, calToday } from './calendar.js';
 import { changeCycleStatus, submitCycle } from './cycles.js';
 import { removeLock, setLock, unlockApp } from './lock.js';
-import { exportReportCSV, reportSet } from './reports.js';
+import { exportApplicationHistoryCSV, exportReportCSV, reportSet } from './reports.js';
 import {
   CYCLE_ID_RE,
   appDraft,
@@ -44,6 +45,7 @@ import {
   updateReportFrom,
   updateReportTo,
   updateTab,
+  writeViewPreference,
 } from './state.js';
 import {
   deleteCloudData,
@@ -64,11 +66,19 @@ import {
   render,
   setTab,
   setTheme,
+  showSyncDetails,
+  showToast,
+  syncHeader,
   syncNav,
 } from './ui.js';
 import { $, lastCompoundEntry } from './util.js';
 
 export async function handleAction(e) {
+  const summary = e.target?.closest?.('details[data-details-key] > summary');
+  if (summary && !e.defaultPrevented) {
+    const details = summary.parentElement;
+    writeViewPreference(details.dataset.detailsKey, !details.open);
+  }
   const btn =
     e.target && typeof e.target.closest === 'function'
       ? e.target.closest('button[data-action]')
@@ -89,6 +99,22 @@ export async function handleAction(e) {
       break;
     case 'quick-register':
       quickRegister();
+      break;
+    case 'cycle-history':
+      if (id) {
+        clearApplicationFilters();
+        setApplicationHistoryFilter('cycle', id);
+        setTab('aplicacoes');
+        const history = document.querySelector('.history-panel');
+        if (history) {
+          history.open = true;
+          writeViewPreference(history.dataset.detailsKey, true);
+          history.querySelector('summary').focus();
+        }
+      }
+      break;
+    case 'export-application-history':
+      exportApplicationHistoryCSV(filteredApplications());
       break;
     case 'clear-app-filters':
       clearApplicationFilters();
@@ -264,6 +290,11 @@ export async function handleAction(e) {
     case 'print':
       window.print();
       break;
+    case 'undo-delete':
+      if (id && (await restoreTrash(id, { confirm: false }))) {
+        showToast('Registro restaurado.');
+      }
+      break;
     case 'restore-trash':
       if (id) {
         restoreTrash(id);
@@ -290,8 +321,12 @@ export async function handleAction(e) {
       handleSupabaseAuth('signup', email, pass);
       break;
     }
+    case 'sync-details':
+      showSyncDetails();
+      break;
     case 'cloud-sync':
-      syncWithCloud();
+      await syncWithCloud();
+      syncHeader();
       break;
     case 'cloud-logout':
       handleSupabaseSignOut();
@@ -375,6 +410,16 @@ if (typeof document !== 'undefined' && typeof document.addEventListener === 'fun
 }
 // Delegação de eventos (substitui handlers inline)
 if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
+  document.addEventListener(
+    'toggle',
+    (e) => {
+      const details = e.target;
+      if (details.dataset?.detailsKey && details.isConnected) {
+        writeViewPreference(details.dataset.detailsKey, details.open);
+      }
+    },
+    true,
+  );
   document.addEventListener('input', (e) => {
     const t = e.target;
     if (!t || !t.dataset) {

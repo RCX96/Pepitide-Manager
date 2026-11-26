@@ -1,6 +1,6 @@
-import { db, suppressHomeCalendar } from './state.js';
-import { render } from './ui.js';
-import { $, dateFmt, esc, today, uniqueCompoundNames } from './util.js';
+import { db, readViewPreference, suppressHomeCalendar, writeViewPreference } from './state.js';
+import { button, render } from './ui.js';
+import { $, dateFmt, esc, strictDate, today, uniqueCompoundNames } from './util.js';
 
 /** Hash estável nome → índice 0-7 → variável CSS --c1..--c8 */
 export function compoundColorVar(name) {
@@ -122,9 +122,21 @@ export function decorateCalendarCompounds() {
   }
 }
 
-export let calendarView = 'week',
-  calendarFocus = today().slice(0, 7),
-  calendarSelected = today();
+const savedCalendar = readViewPreference('calendar', {});
+export let calendarView = savedCalendar.view === 'month' ? 'month' : 'week',
+  calendarFocus = /^\d{4}-(0[1-9]|1[0-2])$/.test(savedCalendar.focus)
+    ? savedCalendar.focus
+    : today().slice(0, 7),
+  calendarSelected = strictDate(savedCalendar.selected) ? savedCalendar.selected : today();
+
+function renderCalendar() {
+  writeViewPreference('calendar', {
+    view: calendarView,
+    focus: calendarFocus,
+    selected: calendarSelected,
+  });
+  render();
+}
 
 export function calUTC(s) {
   return new Date(s + 'T12:00:00Z');
@@ -144,24 +156,24 @@ export function calMove(n) {
     calendarSelected = calISO(selected);
     calendarFocus = calendarSelected.slice(0, 7);
   }
-  render();
+  renderCalendar();
 }
 
 export function calSetView(v) {
   calendarView = v;
-  render();
+  renderCalendar();
 }
 
 export function calSelect(s) {
   calendarSelected = s;
   calendarFocus = s.slice(0, 7);
-  render();
+  renderCalendar();
 }
 
 export function calToday() {
   calendarSelected = today();
   calendarFocus = calendarSelected.slice(0, 7);
-  render();
+  renderCalendar();
 }
 
 export function calendarPage() {
@@ -203,7 +215,7 @@ export function calendarPage() {
     calendarView === 'month' ? monthTitle : `Semana de ${dateFmt(days[0])} a ${dateFmt(days[6])}`;
   const calendarClass =
     calendarView === 'week' ? 'calendar-grid calendar-week-grid' : 'calendar-grid';
-  return `<h1>Calendário de aplicações</h1><div class="panel"><div class="calendar-tools"><div class="row"><button type="button" data-action="cal-prev" aria-label="Período anterior">‹</button><button type="button" data-action="cal-today">Hoje</button><button type="button" data-action="cal-next" aria-label="Próximo período">›</button></div><div class="row"><button type="button" class="${calendarView === 'month' ? 'primary' : ''}" data-action="cal-view" data-id="month">Mês</button><button type="button" class="${calendarView === 'week' ? 'primary' : ''}" data-action="cal-view" data-id="week">Semana</button></div></div><h2>${esc(heading)}</h2><div class="${calendarClass}">${['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'].map((w) => `<div class="calendar-weekday">${w}</div>`).join('')}${days.map((s) => (s ? `<button type="button" class="calendar-day ${s === calendarSelected ? 'selected' : ''} ${s === today() ? 'today' : ''}" data-action="cal-select" data-id="${esc(s)}" aria-pressed="${s === calendarSelected}" aria-label="${dateFmt(s)}: ${counts[s] || 0} aplicação(ões)"><span>${Number(s.slice(-2))}</span>${counts[s] ? `<span class="calendar-count">${counts[s]} aplicação${counts[s] === 1 ? '' : 'ões'}</span>` : ''}</button>` : '<div class="calendar-empty"></div>')).join('')}</div></div><div class="panel calendar-list"><h2 id="calendarDayTitle" tabindex="-1">Aplicações de ${dateFmt(calendarSelected)}</h2><button type="button" class="primary" data-action="quick-register-date" data-id="${esc(calendarSelected)}">+ Nova aplicação</button>${chosen.length ? chosen.map((a) => `<div class="item"><b>${esc(a.time || 'Horário não informado')}</b><p>${a.compounds.map((c) => `${esc(c.name)} (${esc(c.dose)} ${esc(c.unit)})`).join(' + ')}</p><p class="muted">${esc(db.cycles.find((c) => c.id === a.cycleId)?.name || 'Sem ciclo')}${a.notes ? ' • ' + esc(a.notes) : ''}</p></div>`).join('') : '<p class="empty">Nenhuma aplicação registrada neste dia.</p>'}</div>`;
+  return `<h1>Calendário de aplicações</h1><div class="panel"><div class="calendar-tools"><div class="row"><button type="button" data-action="cal-prev" aria-label="Período anterior">‹</button><button type="button" data-action="cal-today">Hoje</button><button type="button" data-action="cal-next" aria-label="Próximo período">›</button></div><div class="row"><button type="button" class="${calendarView === 'month' ? 'primary' : ''}" data-action="cal-view" data-id="month">Mês</button><button type="button" class="${calendarView === 'week' ? 'primary' : ''}" data-action="cal-view" data-id="week">Semana</button></div></div><h2>${esc(heading)}</h2><div class="${calendarClass}">${['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'].map((w) => `<div class="calendar-weekday">${w}</div>`).join('')}${days.map((s) => (s ? `<button type="button" class="calendar-day ${s === calendarSelected ? 'selected' : ''} ${s === today() ? 'today' : ''}" data-action="cal-select" data-id="${esc(s)}" aria-pressed="${s === calendarSelected}" aria-label="${dateFmt(s)}: ${counts[s] || 0} aplicação(ões)"><span>${Number(s.slice(-2))}</span>${counts[s] ? `<span class="calendar-count">${counts[s]} aplicação${counts[s] === 1 ? '' : 'ões'}</span>` : ''}</button>` : '<div class="calendar-empty"></div>')).join('')}</div></div><div class="panel calendar-list"><h2 id="calendarDayTitle" tabindex="-1">Aplicações de ${dateFmt(calendarSelected)}</h2><button type="button" class="primary" data-action="quick-register-date" data-id="${esc(calendarSelected)}">+ Nova aplicação</button>${chosen.length ? chosen.map((a) => `<div class="item"><b>${esc(a.time || 'Horário não informado')}</b><p>${a.compounds.map((c) => `${esc(c.name)} (${esc(c.dose)} ${esc(c.unit)})`).join(' + ')}</p><p class="muted">${esc(db.cycles.find((c) => c.id === a.cycleId)?.name || 'Sem ciclo')}${a.notes ? ' • ' + esc(a.notes) : ''}</p><div class="row">${button('Editar', 'edit-app', a.id)}${button('Duplicar', 'copy-app', a.id)}</div></div>`).join('') : '<p class="empty">Nenhuma aplicação registrada neste dia.</p>'}</div>`;
 }
 
 export function homeCalendar() {
