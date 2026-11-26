@@ -20,9 +20,9 @@ const modal = (page) => page.locator('dialog#appFormDialog');
 const openNew = (page) => page.getByRole('button', { name: 'Nova aplicação' }).click();
 const row = (page) => page.locator('#applicationList .item').filter({ hasText: 'Nota original' });
 const submit = (page) => modal(page).locator('button[type=submit]').click();
-async function seed(page, records = []) {
+async function seed(page, records = [], cycleOverrides = {}) {
   await page.addInitScript(
-    ({ key, records }) => {
+    ({ key, records, cycleOverrides }) => {
       if (localStorage.getItem(key)) return;
       const updatedAt = new Date().toISOString();
       localStorage.setItem(
@@ -39,6 +39,7 @@ async function seed(page, records = []) {
               notes: '',
               pauses: [],
               updatedAt,
+              ...cycleOverrides,
             },
           ],
           weights: [],
@@ -51,7 +52,7 @@ async function seed(page, records = []) {
         }),
       );
     },
-    { key, records },
+    { key, records, cycleOverrides },
   );
 }
 
@@ -343,4 +344,57 @@ test('mostra detalhes da sincronização e permite tentar novamente', async ({ p
   await dialog.getByRole('button', { name: 'Sincronizar agora' }).click();
   await expect(dialog).toContainText('16:31');
   await expect(dialog).toContainText('Nenhum envio pendente');
+});
+
+test('remover pausa aberta retoma o ciclo e preserva as aplicações e outras pausas', async ({
+  page,
+}) => {
+  await page.clock.setFixedTime(new Date('2026-11-22T15:00:00Z'));
+  const closedPause = { start: '2026-11-08', end: '2026-11-10' };
+  await seed(page, [original], {
+    status: 'paused',
+    pauses: [closedPause, { start: '2026-11-21', end: null }],
+  });
+  await page.goto('/?tab=ciclos');
+  await expect(page.getByText('18 dias ativos', { exact: true })).toBeVisible();
+  await page.getByText('Pausas (2)', { exact: true }).click();
+  const openPause = page.locator('[data-action="remove-cycle-pause"][data-id="c1d2:1"]');
+  await openPause.click();
+  const dialog = page.getByRole('dialog', { name: 'Remover pausa' });
+  await expect(dialog).toContainText('21/11/2026 (em andamento)');
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
+  await expect(openPause).toBeVisible();
+  await openPause.click();
+  await dialog.getByRole('button', { name: 'Remover', exact: true }).click();
+  await expect(page.getByText('20 dias ativos', { exact: true })).toBeVisible();
+  await page.reload();
+  await expect(page.locator('.pill.active')).toHaveText('Em andamento');
+  const state = await page.evaluate((key) => JSON.parse(localStorage.getItem(key)), key);
+  expect(state.cycles[0]).toMatchObject({
+    status: 'active',
+    pauses: [closedPause],
+    end: '2026-11-30',
+  });
+  expect(state.applications).toMatchObject([original]);
+});
+
+test('remover pausa encerrada recalcula dias de um ciclo finalizado', async ({ page }) => {
+  await seed(page, [original], {
+    end: date,
+    status: 'finished',
+    pauses: [{ start: '2026-11-08', end: '2026-11-10' }],
+  });
+  await page.goto('/?tab=ciclos');
+  await page.getByText('Ciclos finalizados (1)', { exact: true }).click();
+  await expect(page.getByText('20 dias ativos', { exact: true })).toBeVisible();
+  await page.getByText('Pausas (1)', { exact: true }).click();
+  await page.getByRole('button', { name: 'Remover pausa', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Remover pausa' });
+  await expect(dialog).toContainText('08/11/2026 até 10/11/2026');
+  await dialog.getByRole('button', { name: 'Remover', exact: true }).click();
+  await expect(page.getByText('22 dias ativos', { exact: true })).toBeVisible();
+  const state = await page.evaluate((key) => JSON.parse(localStorage.getItem(key)), key);
+  expect(state.cycles[0]).toMatchObject({ status: 'finished', pauses: [], end: date });
+  expect(state.applications).toMatchObject([original]);
 });

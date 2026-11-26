@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## 2.38.1
+
+- **Ciclos:** permite remover uma pausa lançada por engano após confirmar o período.
+  O app recalcula os dias ativos e retoma o ciclo se a pausa removida ainda estava em andamento.
+
 ## 2.38
 
 - **Calendário:** edição e duplicação na lista do dia.

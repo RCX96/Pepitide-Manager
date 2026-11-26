@@ -28,7 +28,7 @@ import {
   verifyLocalData,
 } from './backup.js';
 import { calMove, calSelect, calSetView, calToday } from './calendar.js';
-import { changeCycleStatus, submitCycle } from './cycles.js';
+import { changeCycleStatus, removeCyclePause, submitCycle } from './cycles.js';
 import { removeLock, setLock, unlockApp } from './lock.js';
 import { exportApplicationHistoryCSV, exportReportCSV, reportSet } from './reports.js';
 import {
@@ -237,6 +237,11 @@ export async function handleAction(e) {
       updateEditing(null);
       render();
       syncNav();
+      break;
+    case 'remove-cycle-pause':
+      if (id) {
+        await removeCyclePause(id);
+      }
       break;
     case 'pause-cycle':
       if (id && CYCLE_ID_RE.test(id)) {

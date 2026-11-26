@@ -1,6 +1,19 @@
 import { CYCLE_ID_RE, db, editing, updateEditing } from './state.js';
-import { button, clearFieldErrors, emptyState, setFieldError, showToast } from './ui.js';
+import {
+  button,
+  clearFieldErrors,
+  confirmDialog,
+  emptyState,
+  setFieldError,
+  showToast,
+} from './ui.js';
 import { dateFmt, dayCount, elapsedCycle, esc, save, today, uid } from './util.js';
+
+function pausePeriod(pause) {
+  return pause.end
+    ? `${dateFmt(pause.start)} até ${dateFmt(pause.end)}`
+    : `${dateFmt(pause.start)} (em andamento)`;
+}
 
 export function cycleDetails(x) {
   const todayDate = today(),
@@ -9,8 +22,8 @@ export function cycleDetails(x) {
   const active = elapsedCycle(x);
   const periods = (x.pauses || [])
     .map(
-      (p) =>
-        `<div class="muted">⏸ ${dateFmt(p.start)} até ${p.end ? dateFmt(p.end) : 'em andamento'}</div>`,
+      (p, index) =>
+        `<div class="row between"><span class="muted">⏸ ${pausePeriod(p)}</span>${button('Remover pausa', 'remove-cycle-pause', `${x.id}:${index}`)}</div>`,
     )
     .join('');
   const applicationDates = db.applications
@@ -108,6 +121,48 @@ export function cycles() {
     <h2>Meus ciclos</h2>
     ${listHTML}
   </div>`;
+}
+
+export async function removeCyclePause(selection) {
+  const [id, rawIndex] = selection.split(':');
+  if (!CYCLE_ID_RE.test(id) || !/^\d+$/.test(rawIndex)) {
+    return;
+  }
+  const index = Number(rawIndex);
+  const cycle = db.cycles.find((item) => item.id === id);
+  const pause = cycle?.pauses?.[index];
+  if (!pause) {
+    return;
+  }
+
+  const period = pausePeriod(pause);
+  if (!(await confirmDialog('Remover pausa', `Remover a pausa de ${period}?`, 'Remover'))) {
+    return;
+  }
+
+  if (
+    db.cycles.find((item) => item.id === id) !== cycle ||
+    cycle.pauses[index] !== pause ||
+    pausePeriod(pause) !== period
+  ) {
+    showToast('A pausa mudou. Confira as datas e tente novamente.');
+    return;
+  }
+  const previousCycles = db.cycles;
+  const pauses = cycle.pauses.filter((_, pauseIndex) => pauseIndex !== index);
+  const resume = cycle.status === 'paused' && !pause.end && pauses.every((item) => item.end);
+  const updated = {
+    ...cycle,
+    pauses,
+    status: resume ? 'active' : cycle.status,
+    updatedAt: new Date().toISOString(),
+  };
+  db.cycles = previousCycles.map((item) => (item === cycle ? updated : item));
+  if (!save()) {
+    db.cycles = previousCycles;
+    return;
+  }
+  showToast('Pausa removida.');
 }
 
 export function changeCycleStatus(id, status) {

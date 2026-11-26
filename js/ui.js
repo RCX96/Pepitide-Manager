@@ -151,12 +151,12 @@ export function emptyState(text, btnLabel = '', action = '', id = '') {
   </div>`;
 }
 
-export function confirmDialog(title, text) {
+export function confirmDialog(title, text, confirmLabel = 'Sim, excluir') {
   return new Promise((resolve) => {
     const dlg = document.createElement('dialog');
-    dlg.setAttribute('aria-labelledby', 'confirmTitle');
-    dlg.setAttribute('aria-describedby', 'confirmText');
-    dlg.innerHTML = `<h2 id="confirmTitle">${esc(title)}</h2><p id="confirmText">${esc(text)}</p><div class="row between"><button type="button" data-cancel>Cancelar</button><button type="button" class="danger" data-ok>Sim, excluir</button></div>`;
+    dlg.setAttribute('aria-labelledby', 'actionConfirmTitle');
+    dlg.setAttribute('aria-describedby', 'actionConfirmText');
+    dlg.innerHTML = `<h2 id="actionConfirmTitle">${esc(title)}</h2><p id="actionConfirmText">${esc(text)}</p><div class="row between"><button type="button" data-cancel>Cancelar</button><button type="button" class="danger" data-ok>${esc(confirmLabel)}</button></div>`;
     document.body.appendChild(dlg);
     dlg.showModal();
     dlg.querySelector('[data-ok]').addEventListener('click', () => {
@@ -169,7 +169,14 @@ export function confirmDialog(title, text) {
       dlg.remove();
       resolve(false);
     });
-    dlg.addEventListener('close', () => resolve(false), { once: true });
+    dlg.addEventListener(
+      'close',
+      () => {
+        dlg.remove();
+        resolve(false);
+      },
+      { once: true },
+    );
   });
 }
 
