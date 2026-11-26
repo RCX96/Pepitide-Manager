@@ -1,6 +1,6 @@
 {
   "name": "pepitide-manager",
-  "version": "2.36.1",
+  "version": "2.37.0",
   "description": "PWA de registro pessoal de aplicações e ciclos.",
   "private": true,
   "type": "module",

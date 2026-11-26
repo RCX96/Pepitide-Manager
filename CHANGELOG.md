@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## 2.37
+
+- **Calendário:** tocar em um dia mostra seus registros. O botão Nova aplicação abre o formulário
+  com a data selecionada.
+- **Histórico:** a busca aceita filtros combinados por ciclo, composto e período inclusivo.
+
 ## 2.36.1
 
 - **Aplicações:** o botão do histórico vazio abre o formulário, e a navegação de volta encerra a

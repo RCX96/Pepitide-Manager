@@ -6,6 +6,7 @@ import { reports } from './reports.js';
 import {
   CYCLE_ID_RE,
   applicationFilter,
+  applicationHistoryFilters,
   catalogFilter,
   db,
   historyCompound,
@@ -310,7 +311,22 @@ export function syncHeader() {
 
 export function extraPanels() {
   if (tab === 'aplicacoes') {
-    return `<div class="panel quick-filter"><h2>Buscar aplicações</h2><label class="sr-only" for="applicationSearch">Buscar aplicações</label><input id="applicationSearch" type="search" aria-label="Buscar aplicações" value="${esc(applicationFilter)}" placeholder="Composto, data ou observação" data-filter="apps"></div>`;
+    const { cycle, compound, from, to } = applicationHistoryFilters;
+    const cycleOptions = db.cycles
+      .map(
+        ({ id, name }) =>
+          `<option value="${esc(id)}" ${id === cycle ? 'selected' : ''}>${esc(name)}</option>`,
+      )
+      .join('');
+    const compoundOptions = uniqueCompoundNames(
+      db.applications.flatMap((a) => (a.compounds || []).map((c) => c.name)),
+    )
+      .map((name) => {
+        const key = name.toLocaleLowerCase('pt-BR');
+        return `<option value="${esc(key)}" ${key === compound ? 'selected' : ''}>${esc(name)}</option>`;
+      })
+      .join('');
+    return `<div id="applicationFilters" class="panel quick-filter"><h2>Buscar aplicações</h2><label class="sr-only" for="applicationSearch">Buscar aplicações</label><input id="applicationSearch" type="search" aria-label="Buscar aplicações" value="${esc(applicationFilter)}" placeholder="Composto, data ou observação" data-filter="apps"><div class="two"><div><label for="applicationCycleFilter">Ciclo</label><select id="applicationCycleFilter" data-app-history-filter="cycle"><option value="">Todos os ciclos</option>${cycleOptions}</select></div><div><label for="applicationCompoundFilter">Composto</label><select id="applicationCompoundFilter" data-app-history-filter="compound"><option value="">Todos os compostos</option>${compoundOptions}</select></div></div><div class="two"><div><label for="applicationFromFilter">De</label><input id="applicationFromFilter" type="date" value="${esc(from)}" data-app-history-filter="from"></div><div><label for="applicationToFilter">Até</label><input id="applicationToFilter" type="date" value="${esc(to)}" data-app-history-filter="to"></div></div>${button('Limpar filtros', 'clear-app-filters')}</div>`;
   }
   if (tab === 'configuracoes') {
     const names = rememberedCompoundNames().filter(

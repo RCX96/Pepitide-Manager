@@ -171,12 +171,18 @@ for (const view of ['Mês', 'Semana']) {
     for (const day of [date, '2026-11-21']) {
       const dayButton = page.locator(`.calendar-day[data-id="${day}"]`);
       await dayButton.click();
-      await expect(modal(page).locator('#appDate')).toHaveValue(day);
-      await page.keyboard.press('Escape');
-      await expect(dayButton).toBeFocused();
+      await expect(dayButton).toHaveAttribute('aria-pressed', 'true');
+      await expect(modal(page)).toHaveCount(0);
       await expect(page.locator('.calendar-list')).toContainText(
         day === date ? 'Nota original' : 'Nenhuma aplicação registrada neste dia.',
       );
+      const register = page
+        .locator('.calendar-list')
+        .getByRole('button', { name: 'Nova aplicação' });
+      await register.click();
+      await expect(modal(page).locator('#appDate')).toHaveValue(day);
+      await page.keyboard.press('Escape');
+      await expect(register).toBeFocused();
     }
   });
 }
@@ -205,4 +211,32 @@ test('Falha de persistência mantém rascunho e permite tentar novamente', async
   await submit(page);
   await expect(modal(page)).toHaveCount(0);
   expect(await stored(page)).toHaveLength(1);
+});
+
+test('histórico combina filtros com busca e limpa todos os campos', async ({ page }) => {
+  await seed(page, [
+    original,
+    { ...original, id: 'a3', date: '2026-11-21', notes: 'Registro anterior' },
+    { ...original, id: 'a4', compounds: [{ name: 'Outro', dose: 1, unit: 'mg' }] },
+    { ...original, id: 'a5', cycleId: null, notes: 'Sem vínculo' },
+  ]);
+  await page.goto('/?tab=aplicacoes');
+  const list = page.locator('#applicationList');
+  await expect(list.locator('.item')).toHaveCount(4);
+  await page.getByLabel('Ciclo', { exact: true }).selectOption('c1d2');
+  await expect(list.locator('.item')).toHaveCount(3);
+  await page.getByLabel('Composto', { exact: true }).selectOption({ label: 'Composto B' });
+  await expect(list.locator('.item')).toHaveCount(2);
+  await page.getByLabel('De', { exact: true }).fill(date);
+  await page.getByLabel('Até', { exact: true }).fill(date);
+  await expect(list.locator('.item')).toHaveCount(1);
+  await expect(list).toContainText('Nota original');
+  await page.getByRole('searchbox').fill('sem correspondência');
+  await expect(list).toContainText('Nenhuma aplicação corresponde aos filtros.');
+  await page.getByRole('button', { name: 'Limpar filtros' }).click();
+  await expect(list.locator('.item')).toHaveCount(4);
+  await expect(page.getByRole('searchbox')).toHaveValue('');
+  for (const field of ['Ciclo', 'Composto', 'De', 'Até']) {
+    await expect(page.getByLabel(field, { exact: true })).toHaveValue('');
+  }
 });

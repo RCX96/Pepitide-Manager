@@ -2,11 +2,13 @@ import {
   CYCLE_ID_RE,
   appDraft,
   applicationFilter,
+  applicationHistoryFilters,
   compounds,
   db,
   editing,
   updateAppDraft,
   updateApplicationFilter,
+  updateApplicationHistoryFilters,
   updateCompounds,
   updateEditing,
 } from './state.js';
@@ -26,18 +28,45 @@ import {
 
 export function filteredApplications() {
   const q = applicationFilter.trim().toLocaleLowerCase('pt-BR');
-  return db.applications.filter(
-    (a) =>
-      !q ||
-      [a.date, a.time, a.site, a.notes, ...(a.compounds || []).map((c) => c.name)]
-        .join(' ')
-        .toLocaleLowerCase('pt-BR')
-        .includes(q),
-  );
+  const { cycle, compound, from, to } = applicationHistoryFilters;
+  return db.applications.filter((a) => {
+    const names = (a.compounds || []).map((c) => c.name);
+    return (
+      (!cycle || a.cycleId === cycle) &&
+      (!compound || names.some((name) => name.trim().toLocaleLowerCase('pt-BR') === compound)) &&
+      (!from || a.date >= from) &&
+      (!to || a.date <= to) &&
+      (!q ||
+        [a.date, a.time, a.site, a.notes, ...names]
+          .join(' ')
+          .toLocaleLowerCase('pt-BR')
+          .includes(q))
+    );
+  });
 }
 
 export function setApplicationFilter(value) {
   updateApplicationFilter(String(value || ''));
+  refreshApplicationHistory();
+}
+
+export function setApplicationHistoryFilter(field, value) {
+  updateApplicationHistoryFilters({ ...applicationHistoryFilters, [field]: value });
+  refreshApplicationHistory();
+}
+
+export function clearApplicationFilters() {
+  updateApplicationFilter('');
+  updateApplicationHistoryFilters({ cycle: '', compound: '', from: '', to: '' });
+  for (const field of document.querySelectorAll(
+    '#applicationFilters input, #applicationFilters select',
+  )) {
+    field.value = '';
+  }
+  refreshApplicationHistory();
+}
+
+function refreshApplicationHistory() {
   const el = document.getElementById('applicationList');
   if (el) {
     el.innerHTML = applicationListHTML();
@@ -149,6 +178,9 @@ export function applicationListHTML() {
     .slice()
     .sort((x, y) => y.date.localeCompare(x.date));
   if (!visible.length) {
+    if (applicationFilter.trim() || Object.values(applicationHistoryFilters).some(Boolean)) {
+      return emptyState('Nenhuma aplicação corresponde aos filtros.');
+    }
     return emptyState('Nenhuma aplicação registrada.', 'Registrar a primeira aplicação', 'new-app');
   }
   return visible

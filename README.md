@@ -9,7 +9,7 @@ compostos e não substitui orientação profissional.
 
 - Fontes: <https://github.com/RCX96/Pepitide-Manager>
 - App: <https://rcx96.github.io/Pepitide-Manager/>
-- Versão atual: 2.36.1
+- Versão atual: 2.37
 
 ## O que faz
 
@@ -172,7 +172,7 @@ configurado em `js/state.js`.
 
 - `index.html` exibe a versão no rodapé e carrega `js/main.js`/`styles.css` com `?v=<versão>`.
 - Cada versão publicada recebe uma tag e uma release no GitHub (`v2.4`, por exemplo).
-- O cache do service worker usa o mesmo número (`peptide-manager-shell-v2.36.1`); ao publicar,
+- O cache do service worker usa o mesmo número (`peptide-manager-shell-v2.37`); ao publicar,
   atualize `CACHE_VERSION` em `service-worker.js` e o `?v=` em `index.html`. O app mostra
   “Nova versão disponível” quando a versão nova assume o controle.
 

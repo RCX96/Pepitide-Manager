@@ -1,5 +1,6 @@
 import {
   addCompound,
+  clearApplicationFilters,
   compoundFields,
   openAppForm,
   copyApp,
@@ -11,6 +12,7 @@ import {
   resetApp,
   showAppDialog,
   setApplicationFilter,
+  setApplicationHistoryFilter,
   submitApp,
 } from './apps.js';
 import {
@@ -88,15 +90,19 @@ export async function handleAction(e) {
     case 'quick-register':
       quickRegister();
       break;
+    case 'clear-app-filters':
+      clearApplicationFilters();
+      break;
     case 'cal-select':
+      if (id) {
+        calSelect(id);
+        document.getElementById('calendarDayTitle')?.focus();
+      }
+      break;
     case 'quick-register-date': {
       const date = id;
       if (!date) {
         return;
-      }
-      if (action === 'cal-select') {
-        calSelect(date);
-        document.querySelector('.calendar-day.selected')?.focus({ preventScroll: true });
       }
       updateEditing(null);
       updateAppDraft({
@@ -391,7 +397,9 @@ if (typeof document !== 'undefined' && typeof document.addEventListener === 'fun
     if (!t || !t.dataset) {
       return;
     }
-    if (t.dataset.change === 'history-compound') {
+    if (t.dataset.appHistoryFilter) {
+      setApplicationHistoryFilter(t.dataset.appHistoryFilter, t.value);
+    } else if (t.dataset.change === 'history-compound') {
       updateHistoryCompound(t.value);
       render();
     } else if (t.dataset.compound) {

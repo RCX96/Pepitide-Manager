@@ -108,6 +108,7 @@ export let tab = 'inicio',
   appDraft = null,
   compounds = [{ name: '', dose: '', unit: 'mg' }],
   applicationFilter = '',
+  applicationHistoryFilters = { cycle: '', compound: '', from: '', to: '' },
   catalogFilter = '',
   suppressHomeCalendar = false,
   supabaseClient = null,
@@ -146,6 +147,9 @@ export function updateCompounds(v) {
 }
 export function updateApplicationFilter(v) {
   applicationFilter = v;
+}
+export function updateApplicationHistoryFilters(filters) {
+  applicationHistoryFilters = filters;
 }
 export function updateCatalogFilter(v) {
   catalogFilter = v;
