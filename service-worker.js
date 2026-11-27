@@ -1,4 +1,4 @@
-const CACHE_VERSION = '2.38.2';
+const CACHE_VERSION = '2.39';
 const CACHE_NAME = 'peptide-manager-shell-v' + CACHE_VERSION;
 const ASSETS = [
   './',
@@ -23,6 +23,7 @@ const ASSETS = [
   './js/calendar.js',
   './js/apps.js',
   './js/cycles.js',
+  './js/personal.js',
   './js/sync.js',
   './js/backup.js',
   './js/reports.js',

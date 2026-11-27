@@ -111,6 +111,7 @@ export function validateBackup(d) {
     !['applications', 'cycles', 'weights'].every((k) => Array.isArray(d[k])) ||
     (d.trash !== undefined && !Array.isArray(d.trash)) ||
     (d.compoundCatalog !== undefined && !Array.isArray(d.compoundCatalog)) ||
+    (d.personalEntries !== undefined && !Array.isArray(d.personalEntries)) ||
     (d.reminders !== undefined && !Array.isArray(d.reminders)) ||
     (d.deleted !== undefined && !Array.isArray(d.deleted)) ||
     (d.schemaVersion !== undefined && Number(d.schemaVersion) > 3)
@@ -119,6 +120,36 @@ export function validateBackup(d) {
       throw Error('Este backup vem de uma versão mais nova do app.');
     }
     throw Error('Estrutura do backup inválida');
+  }
+  for (const entry of d.personalEntries || []) {
+    const text = (value, max) => typeof value === 'string' && value.trim() && value.length <= max;
+    if (
+      !entry ||
+      !Number.isFinite(Date.parse(entry.updatedAt)) ||
+      !(
+        (entry.kind === 'diary' && strictDate(entry.date) && text(entry.notes, 5000)) ||
+        (entry.kind === 'plan' &&
+          strictDate(entry.date) &&
+          text(entry.title, 120) &&
+          ['planned', 'skipped', 'recorded'].includes(entry.status)) ||
+        (entry.kind === 'template' &&
+          text(entry.title, 120) &&
+          typeof entry.time === 'string' &&
+          typeof entry.notes === 'string' &&
+          Array.isArray(entry.compounds) &&
+          entry.compounds.length &&
+          entry.compounds.every(
+            (c) =>
+              c &&
+              text(c.name, 120) &&
+              Number(c.dose) > 0 &&
+              Number.isFinite(Number(c.dose)) &&
+              ['mg', 'mcg', 'mL', 'UI'].includes(c.unit),
+          ))
+      )
+    ) {
+      throw Error('Item pessoal inválido');
+    }
   }
   for (const r of d.reminders || []) {
     if (
@@ -150,6 +181,7 @@ export function validateBackup(d) {
     ['applications', d.applications],
     ['cycles', d.cycles],
     ['weights', d.weights],
+    ['personalEntries', d.personalEntries || []],
   ]) {
     if (rows.length > 100000) {
       throw Error('Arquivo excede o limite de registros');

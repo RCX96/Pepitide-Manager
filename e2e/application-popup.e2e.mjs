@@ -398,3 +398,62 @@ test('remover pausa encerrada recalcula dias de um ciclo finalizado', async ({ p
   expect(state.cycles[0]).toMatchObject({ status: 'finished', pauses: [], end: date });
   expect(state.applications).toMatchObject([original]);
 });
+
+test('salva e reutiliza um modelo sem criar aplicação até confirmar', async ({ page }) => {
+  await seed(page);
+  await page.goto('/?tab=aplicacoes');
+  await openNew(page);
+  await modal(page).locator('#compoundName0').fill('Composto do modelo');
+  await modal(page).locator('#compoundDose0').fill('1');
+  await modal(page).locator('#appNotes').fill('Revisar antes de salvar');
+  await modal(page).getByText('Modelos de preenchimento').click();
+  await modal(page).getByRole('button', { name: 'Salvar como modelo' }).click();
+  const prompt = page.getByRole('dialog', { name: 'Salvar modelo' });
+  await prompt.getByRole('textbox').fill('Meu modelo');
+  await prompt.getByRole('button', { name: 'OK' }).click();
+  await expect(modal(page).getByLabel('Modelo', { exact: true }).locator('option')).toHaveText([
+    'Escolha um modelo',
+    'Meu modelo',
+  ]);
+  expect(await stored(page)).toHaveLength(0);
+  await page.keyboard.press('Escape');
+  await page.reload();
+  await openNew(page);
+  await modal(page).getByText('Modelos de preenchimento').click();
+  await modal(page).getByLabel('Modelo', { exact: true }).selectOption({ label: 'Meu modelo' });
+  await modal(page).getByRole('button', { name: 'Usar modelo' }).click();
+  await expect(modal(page).locator('#compoundName0')).toHaveValue('Composto do modelo');
+  await expect(modal(page).locator('#appNotes')).toHaveValue('Revisar antes de salvar');
+  await expect(modal(page).locator('#appCycle')).toHaveValue('');
+  expect(await stored(page)).toHaveLength(0);
+});
+
+test('planejamento só gera aplicação após confirmação e diário é independente', async ({
+  page,
+}) => {
+  await page.clock.setFixedTime(new Date('2026-11-22T15:00:00Z'));
+  await seed(page);
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Planejar aplicação' }).click();
+  const prompt = page.getByRole('dialog', { name: 'Planejar aplicação' });
+  await prompt.getByRole('textbox').fill('Compromisso');
+  await prompt.getByRole('button', { name: 'OK' }).click();
+  await expect(page.getByText('Planejado', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Marcar como pulado' }).click();
+  await expect(page.getByText('Pulado', { exact: true })).toBeVisible();
+  expect(await stored(page)).toHaveLength(0);
+  await page.getByRole('button', { name: 'Voltar a planejar' }).click();
+  await page.getByRole('button', { name: 'Registrar', exact: true }).click();
+  await expect(modal(page).locator('#appDate')).toHaveValue(date);
+  await modal(page).locator('#appCycle').selectOption('c1d2');
+  await modal(page).locator('#compoundName0').fill('Composto registrado');
+  await modal(page).locator('#compoundDose0').fill('1');
+  await submit(page);
+  await expect(page.getByText('Registrado', { exact: true })).toBeVisible();
+  await page.getByLabel('Observações ou sintomas').fill('Anotação independente');
+  await page.getByRole('button', { name: 'Salvar no diário' }).click();
+  await page.reload();
+  expect(await stored(page)).toHaveLength(1);
+  await expect(page.getByText('Registrado', { exact: true })).toBeVisible();
+  await expect(page.getByText('Anotação independente', { exact: true })).toBeVisible();
+});

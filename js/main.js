@@ -1,8 +1,19 @@
 import {
+  deletePersonalEntry,
+  personalEntries,
+  planApplication,
+  setPlanStatus,
+  submitDiary,
+} from './personal.js';
+import {
   addCompound,
   clearApplicationFilters,
   compoundFields,
   openAppForm,
+  openDatedApplication,
+  saveApplicationTemplate,
+  deleteApplicationTemplate,
+  useApplicationTemplate,
   copyApp,
   editApp,
   filteredApplications,
@@ -11,7 +22,6 @@ import {
   removeCompoundName,
   renameCompound,
   resetApp,
-  showAppDialog,
   setApplicationFilter,
   setApplicationHistoryFilter,
   submitApp,
@@ -38,7 +48,6 @@ import {
   editing,
   updateAppDraft,
   updateCatalogFilter,
-  updateCompounds,
   updateEditing,
   updateHistoryCompound,
   updateReportCycle,
@@ -125,25 +134,39 @@ export async function handleAction(e) {
         document.getElementById('calendarDayTitle')?.focus();
       }
       break;
-    case 'quick-register-date': {
-      const date = id;
-      if (!date) {
-        return;
+    case 'quick-register-date':
+      if (id) {
+        openDatedApplication(id);
       }
-      updateEditing(null);
-      updateAppDraft({
-        id: null,
-        date,
-        time: '',
-        site: 'Não informado',
-        cycleId: null,
-        notes: 'Registrado a partir do calendário',
-        compounds: [{ name: '', dose: '', unit: 'mg' }],
-      });
-      updateCompounds(appDraft.compounds.map((c) => ({ ...c })));
-      showAppDialog();
+      break;
+    case 'new-plan':
+      await planApplication(id);
+      break;
+    case 'record-plan': {
+      const plan = personalEntries('plan').find((entry) => entry.id === id);
+      if (plan?.status === 'planned') {
+        openDatedApplication(plan.date, plan.id);
+      }
       break;
     }
+    case 'skip-plan':
+      setPlanStatus(id, 'skipped');
+      break;
+    case 'reopen-plan':
+      setPlanStatus(id, 'planned');
+      break;
+    case 'delete-personal':
+      await deletePersonalEntry(id);
+      break;
+    case 'save-app-template':
+      await saveApplicationTemplate();
+      break;
+    case 'delete-app-template':
+      await deleteApplicationTemplate();
+      break;
+    case 'use-app-template':
+      useApplicationTemplate();
+      break;
     case 'export-data':
       exportData();
       break;
@@ -467,6 +490,8 @@ if (typeof document !== 'undefined' && typeof document.addEventListener === 'fun
     e.preventDefault();
     if (form.dataset.form === 'app') {
       submitApp(e);
+    } else if (form.dataset.form === 'diary') {
+      submitDiary(form);
     } else if (form.dataset.form === 'cycle') {
       submitCycle(e);
     }

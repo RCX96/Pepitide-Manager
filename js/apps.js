@@ -1,3 +1,4 @@
+import { deletePersonalEntry, personalEntries, storePersonalEntry } from './personal.js';
 import {
   CYCLE_ID_RE,
   appDraft,
@@ -12,7 +13,15 @@ import {
   updateCompounds,
   updateEditing,
 } from './state.js';
-import { button, clearFieldErrors, emptyState, render, setFieldError, showToast } from './ui.js';
+import {
+  button,
+  clearFieldErrors,
+  emptyState,
+  promptDialog,
+  render,
+  setFieldError,
+  showToast,
+} from './ui.js';
 import {
   $,
   compoundNameList,
@@ -197,10 +206,87 @@ export function applicationListHTML() {
     .join('');
 }
 
+function templateOptions() {
+  return (
+    '<option value="">Escolha um modelo</option>' +
+    personalEntries('template')
+      .map((entry) => `<option value="${esc(entry.id)}">${esc(entry.title)}</option>`)
+      .join('')
+  );
+}
+
+export async function saveApplicationTemplate() {
+  const form = $('appForm');
+  if (!form) {
+    return;
+  }
+  const saveError = form.querySelector('[data-save-error]');
+  saveError.hidden = true;
+  const fields = new FormData(form);
+  const snapshot = compounds.map((item) => ({
+    ...item,
+    name: item.name.trim(),
+    dose: Number(item.dose),
+  }));
+  if (snapshot.some((item) => !item.name || !Number.isFinite(item.dose) || item.dose <= 0)) {
+    saveError.textContent = 'Preencha os compostos e as doses antes de salvar o modelo.';
+    saveError.hidden = false;
+    return;
+  }
+  const title = (await promptDialog({ title: 'Salvar modelo', text: 'Nome do modelo' }))?.trim();
+  if (!title || !form.isConnected) {
+    return;
+  }
+  if (title.length > 120) {
+    saveError.textContent = 'Use até 120 caracteres no nome do modelo.';
+    saveError.hidden = false;
+    return;
+  }
+  if (
+    storePersonalEntry({
+      id: uid(),
+      kind: 'template',
+      title,
+      compounds: snapshot,
+      time: fields.get('time'),
+      notes: fields.get('notes'),
+    })
+  ) {
+    $('applicationTemplate').innerHTML = templateOptions();
+  } else {
+    saveError.textContent = 'Não foi possível salvar o modelo.';
+    saveError.hidden = false;
+  }
+}
+
+export async function deleteApplicationTemplate() {
+  const select = $('applicationTemplate');
+  if (select?.value && (await deletePersonalEntry(select.value)) && select.isConnected) {
+    select.innerHTML = templateOptions();
+  }
+}
+
+export function useApplicationTemplate() {
+  const template = personalEntries('template').find(
+    (entry) => entry.id === $('applicationTemplate')?.value,
+  );
+  if (!template || !$('appForm')) {
+    return;
+  }
+  $('appTime').value = template.time;
+  $('appNotes').value = template.notes;
+  updateCompounds(template.compounds.map((compound) => ({ ...compound })));
+  $('compoundList').innerHTML = compoundFields();
+}
+
+export function openDatedApplication(date, planId = null) {
+  openAppForm({ date, planId, notes: planId ? '' : 'Registrado a partir do calendário' });
+}
+
 export function appFormHTML() {
   const a = editing ? db.applications.find((x) => x.id === editing) : appDraft;
   const mode = editing ? 'Editar' : a && a._isCopy === true ? 'Nova (cópia)' : 'Nova';
-  return `<div class="panel app-form-panel"><h2 id="appFormTitle">${mode} aplicação</h2><form id="appForm" data-form="app"><div class="two"><div><label for="appDate">Data</label><input id="appDate" name="date" type="date" required value="${a?.date || today()}"></div><div><label for="appTime">Horário (opcional)</label><input id="appTime" name="time" type="time" value="${a?.time || ''}"></div></div><label for="appCycle">Ciclo obrigatório</label><select id="appCycle" name="cycleId" required><option value="">Selecione um ciclo</option>${db.cycles
+  return `<div class="panel app-form-panel"><h2 id="appFormTitle">${mode} aplicação</h2><form id="appForm" data-form="app"><details><summary>Modelos de preenchimento</summary><label for="applicationTemplate">Modelo</label><select id="applicationTemplate">${templateOptions()}</select><div class="row">${button('Usar modelo', 'use-app-template')}${button('Salvar como modelo', 'save-app-template')}${button('Excluir modelo', 'delete-app-template')}</div></details><div class="two"><div><label for="appDate">Data</label><input id="appDate" name="date" type="date" required value="${a?.date || today()}"></div><div><label for="appTime">Horário (opcional)</label><input id="appTime" name="time" type="time" value="${a?.time || ''}"></div></div><label for="appCycle">Ciclo obrigatório</label><select id="appCycle" name="cycleId" required><option value="">Selecione um ciclo</option>${db.cycles
     .filter((c) => CYCLE_ID_RE.test(c.id))
     .map(
       (c) =>
@@ -229,15 +315,15 @@ export function showAppDialog() {
   });
   dlg.addEventListener('close', () => dlg.remove(), { once: true });
   dlg.showModal();
-  const first = dlg.querySelector('#appForm input, #appForm select');
+  const first = dlg.querySelector('#appDate');
   if (first && typeof first.focus === 'function') {
     first.focus();
   }
 }
 
-export function openAppForm() {
+export function openAppForm(draft = null) {
   updateEditing(null);
-  updateAppDraft(null);
+  updateAppDraft(draft);
   updateCompounds([{ name: '', dose: '', unit: 'mg' }]);
   showAppDialog();
 }
@@ -276,8 +362,15 @@ export function submitApp(e) {
     showToast('Selecione um ciclo válido para vincular a aplicação.', 'error');
     return;
   }
+  const planId = editing ? null : appDraft?.planId;
+  const plan = planId ? personalEntries('plan').find((entry) => entry.id === planId) : null;
+  if (planId && plan?.status !== 'planned') {
+    saveError.textContent = 'Este planejamento mudou. Feche o formulário e confira o calendário.';
+    saveError.hidden = false;
+    return;
+  }
   const item = {
-    id: editing || uid(),
+    id: editing || plan?.id || uid(),
     date: f.get('date'),
     time: f.get('time'),
     site: f.get('site') || '',
@@ -288,6 +381,12 @@ export function submitApp(e) {
   };
   const previousApplications = db.applications;
   const previousCatalog = db.compoundCatalog;
+  const previousEntries = db.personalEntries;
+  if (plan) {
+    db.personalEntries = previousEntries.map((entry) =>
+      entry === plan ? { ...entry, status: 'recorded', updatedAt: item.updatedAt } : entry,
+    );
+  }
   db.applications = editing
     ? previousApplications.map((a) => (a.id === editing ? item : a))
     : [...previousApplications, item];
@@ -295,6 +394,7 @@ export function submitApp(e) {
   if (!save({ renderPage: false })) {
     db.applications = previousApplications;
     db.compoundCatalog = previousCatalog;
+    db.personalEntries = previousEntries;
     saveError.textContent =
       'Não foi possível salvar a aplicação. Seus dados continuam no formulário.';
     saveError.hidden = false;

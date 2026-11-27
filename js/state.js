@@ -24,6 +24,7 @@ export const blank = () => ({
   trash: [],
   compoundCatalog: [],
   reminders: [],
+  personalEntries: [],
   deleted: [],
   schemaVersion: 3,
 });

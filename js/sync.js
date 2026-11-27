@@ -143,7 +143,7 @@ export function mergeDb(local, cloud) {
     return t > (updatedAt || '');
   };
 
-  const types = ['applications', 'cycles', 'weights'];
+  const types = ['applications', 'cycles', 'weights', 'personalEntries'];
   for (const type of types) {
     const localArr = Array.isArray(local[type]) ? local[type] : [];
     const cloudArr = Array.isArray(cloud[type]) ? cloud[type] : [];

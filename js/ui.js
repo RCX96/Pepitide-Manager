@@ -1,3 +1,4 @@
+import { diaryHTML } from './personal.js';
 import { applications, filteredApplications } from './apps.js';
 import { backupStatusText } from './backup.js';
 import { calendarPage, compoundColorVar, decorateCalendarCompounds } from './calendar.js';
@@ -617,6 +618,7 @@ export function home() {
     <div class="metric highlight"><span>Ciclos em andamento</span><strong>${active.length}</strong></div>
   </div>
   ${calendarPage()}
+  ${diaryHTML()}
   <div class="panel">
     <h2>Tempo dos ciclos</h2>
     ${

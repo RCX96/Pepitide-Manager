@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## 2.39
+
+- **Aplicações:** salva e reutiliza modelos de preenchimento revisáveis.
+- **Calendário:** separa planejamentos, itens pulados e aplicações registradas.
+- **Diário:** anotações e sintomas com data na tela Início, independentes dos ciclos.
+- **Estabilidade:** teste de navegador para atualização de uma instalação com cache antigo.
+
 ## 2.38.2
 
 - **Atualização do app:** o carregamento espera o cache da nova versão para evitar a mistura de
