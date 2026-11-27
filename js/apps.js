@@ -206,11 +206,14 @@ export function applicationListHTML() {
     .join('');
 }
 
-function templateOptions() {
+function templateOptions(selected) {
   return (
     '<option value="">Escolha um modelo</option>' +
     personalEntries('template')
-      .map((entry) => `<option value="${esc(entry.id)}">${esc(entry.title)}</option>`)
+      .map(
+        (entry) =>
+          `<option value="${esc(entry.id)}" ${entry.id === selected ? 'selected' : ''}>${esc(entry.title)}</option>`,
+      )
       .join('')
   );
 }
@@ -279,14 +282,22 @@ export function useApplicationTemplate() {
   $('compoundList').innerHTML = compoundFields();
 }
 
-export function openDatedApplication(date, planId = null) {
-  openAppForm({ date, planId, notes: planId ? '' : 'Registrado a partir do calendário' });
+export function openDatedApplication(date, planId = null, templateId = '') {
+  const template = personalEntries('template').find((entry) => entry.id === templateId);
+  openAppForm({
+    date,
+    planId,
+    templateId: template?.id,
+    notes: template?.notes ?? (planId ? '' : 'Registrado a partir do calendário'),
+    time: template?.time,
+    compounds: template?.compounds,
+  });
 }
 
 export function appFormHTML() {
   const a = editing ? db.applications.find((x) => x.id === editing) : appDraft;
   const mode = editing ? 'Editar' : a && a._isCopy === true ? 'Nova (cópia)' : 'Nova';
-  return `<div class="panel app-form-panel"><h2 id="appFormTitle">${mode} aplicação</h2><form id="appForm" data-form="app"><details><summary>Modelos de preenchimento</summary><label for="applicationTemplate">Modelo</label><select id="applicationTemplate">${templateOptions()}</select><div class="row">${button('Usar modelo', 'use-app-template')}${button('Salvar como modelo', 'save-app-template')}${button('Excluir modelo', 'delete-app-template')}</div></details><div class="two"><div><label for="appDate">Data</label><input id="appDate" name="date" type="date" required value="${a?.date || today()}"></div><div><label for="appTime">Horário (opcional)</label><input id="appTime" name="time" type="time" value="${a?.time || ''}"></div></div><label for="appCycle">Ciclo obrigatório</label><select id="appCycle" name="cycleId" required><option value="">Selecione um ciclo</option>${db.cycles
+  return `<div class="panel app-form-panel"><h2 id="appFormTitle">${mode} aplicação</h2><form id="appForm" data-form="app"><details><summary>Modelos de preenchimento</summary><label for="applicationTemplate">Modelo</label><select id="applicationTemplate">${templateOptions(a?.templateId)}</select><div class="row">${button('Usar modelo', 'use-app-template')}${button('Salvar como modelo', 'save-app-template')}${button('Excluir modelo', 'delete-app-template')}</div></details><div class="two"><div><label for="appDate">Data</label><input id="appDate" name="date" type="date" required value="${esc(a?.date || today())}"></div><div><label for="appTime">Horário (opcional)</label><input id="appTime" name="time" type="time" value="${esc(a?.time || '')}"></div></div><label for="appCycle">Ciclo obrigatório</label><select id="appCycle" name="cycleId" required><option value="">Selecione um ciclo</option>${db.cycles
     .filter((c) => CYCLE_ID_RE.test(c.id))
     .map(
       (c) =>
@@ -324,7 +335,9 @@ export function showAppDialog() {
 export function openAppForm(draft = null) {
   updateEditing(null);
   updateAppDraft(draft);
-  updateCompounds([{ name: '', dose: '', unit: 'mg' }]);
+  updateCompounds(
+    draft?.compounds?.map((compound) => ({ ...compound })) || [{ name: '', dose: '', unit: 'mg' }],
+  );
   showAppDialog();
 }
 

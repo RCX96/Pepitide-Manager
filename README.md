@@ -9,14 +9,14 @@ compostos e não substitui orientação profissional.
 
 - Fontes: <https://github.com/RCX96/Pepitide-Manager>
 - App: <https://rcx96.github.io/Pepitide-Manager/>
-- Versão atual: 2.39
+- Versão atual: 2.40
 
 ## O que faz
 
 - **Aplicações:** o formulário abre em popup pelo botão "Nova aplicação" ou por Editar/Duplicar; data, horário, ciclo vinculado, compostos por seringa e observações; modelos de preenchimento e histórico recolhível.
 - **Ciclos:** início, fim, pausas e retomadas; linha do tempo de progresso e agrupamento de ciclos finalizados.
-- **Início:** bloco "Hoje" com data por extenso, registros do dia, atalho rápido de repetição, botão que abre o formulário de aplicação em popup e calendário mensal/semanal com planejamento e confirmação manual.
-- **Diário:** anotações ou sintomas por data, independentes dos ciclos.
+- **Início:** bloco "Hoje" com data por extenso, registros do dia, atalho rápido de repetição, botão que abre o formulário de aplicação em popup e agenda do dia e calendário mensal/semanal com modelos vinculados ao planejamento.
+- **Diário:** anotações ou sintomas independentes dos ciclos, com edição e filtros por texto e data.
 - **Relatórios:** gráficos de resumo visual (aplicações por semana em SVG e barras por composto), filtros por período e ciclo, exportação CSV e impressão/PDF; tabelas de aplicações e ciclos empilhadas, em largura total e recolhíveis.
 - **Aparência e temas:** suporte a tema escuro, claro e automático com seletor em Ajustes e tipografia Inter local.
 - **Ajustes:** backup JSON com checksum SHA-256 de corrupção (não comprova autenticidade),
@@ -173,7 +173,7 @@ configurado em `js/state.js`.
 
 - `index.html` exibe a versão no rodapé e carrega `js/bootstrap.js`/`styles.css` com `?v=<versão>`.
 - Cada versão publicada recebe uma tag e uma release no GitHub (`v2.4`, por exemplo).
-- O cache do service worker usa o mesmo número (`peptide-manager-shell-v2.39`); ao publicar,
+- O cache do service worker usa o mesmo número (`peptide-manager-shell-v2.40`); ao publicar,
   atualize `CACHE_VERSION` em `service-worker.js` e o `?v=` em `index.html`. O app mostra
   “Nova versão disponível” quando a versão nova assume o controle.
 

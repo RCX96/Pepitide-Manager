@@ -436,14 +436,17 @@ test('planejamento só gera aplicação após confirmação e diário é indepen
   await page.goto('/');
   await page.getByRole('button', { name: 'Planejar aplicação' }).click();
   const prompt = page.getByRole('dialog', { name: 'Planejar aplicação' });
-  await prompt.getByRole('textbox').fill('Compromisso');
+  await prompt.getByLabel('Nome do compromisso').fill('Compromisso');
   await prompt.getByRole('button', { name: 'OK' }).click();
   await expect(page.getByText('Planejado', { exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Marcar como pulado' }).click();
+  await page.locator('.calendar-list').getByRole('button', { name: 'Marcar como pulado' }).click();
   await expect(page.getByText('Pulado', { exact: true })).toBeVisible();
   expect(await stored(page)).toHaveLength(0);
   await page.getByRole('button', { name: 'Voltar a planejar' }).click();
-  await page.getByRole('button', { name: 'Registrar', exact: true }).click();
+  await page
+    .locator('.calendar-list')
+    .getByRole('button', { name: 'Registrar', exact: true })
+    .click();
   await expect(modal(page).locator('#appDate')).toHaveValue(date);
   await modal(page).locator('#appCycle').selectOption('c1d2');
   await modal(page).locator('#compoundName0').fill('Composto registrado');
@@ -456,4 +459,85 @@ test('planejamento só gera aplicação após confirmação e diário é indepen
   expect(await stored(page)).toHaveLength(1);
   await expect(page.getByText('Registrado', { exact: true })).toBeVisible();
   await expect(page.getByText('Anotação independente', { exact: true })).toBeVisible();
+});
+
+test('agenda remarca compromisso e abre o formulário com o modelo vinculado', async ({ page }) => {
+  await page.clock.setFixedTime(new Date('2026-11-22T15:00:00Z'));
+  await seed(page);
+  await page.goto('/');
+  await page.evaluate((key) => {
+    const db = JSON.parse(localStorage.getItem(key));
+    db.personalEntries = [
+      {
+        id: 'template-test',
+        kind: 'template',
+        title: 'Modelo de teste',
+        time: '09:00',
+        notes: 'Revisar o registro',
+        compounds: [{ name: 'Composto de teste', dose: 1, unit: 'mg' }],
+        updatedAt: new Date().toISOString(),
+      },
+    ];
+    localStorage.setItem(key, JSON.stringify(db));
+  }, key);
+  await page.reload();
+  await page.getByRole('button', { name: 'Planejar aplicação' }).click();
+  const create = page.getByRole('dialog', { name: 'Planejar aplicação' });
+  await create.getByLabel('Nome do compromisso').fill('Compromisso com modelo');
+  await create.getByLabel('Modelo (opcional)').selectOption('template-test');
+  await create.getByRole('button', { name: 'OK' }).click();
+  const agenda = page.getByRole('region', { name: 'Agenda de hoje' });
+  await expect(agenda).toContainText('Compromisso com modelo');
+  await agenda.getByRole('button', { name: 'Remarcar' }).click();
+  const reschedule = page.getByRole('dialog', { name: 'Remarcar compromisso' });
+  await reschedule.getByLabel('Data do compromisso').fill('2026-11-23');
+  await expect(reschedule.getByLabel('Modelo (opcional)')).toHaveValue('template-test');
+  await reschedule.getByRole('button', { name: 'OK' }).click();
+  await expect(agenda).toContainText('Nenhum compromisso pendente para hoje.');
+  await page.getByRole('button', { name: 'Mês', exact: true }).click();
+  await page.locator('.calendar-day[data-id="2026-11-23"]').click();
+  await page
+    .locator('.calendar-list')
+    .getByRole('button', { name: 'Registrar', exact: true })
+    .click();
+  const form = modal(page);
+  await expect(form.locator('#appDate')).toHaveValue('2026-11-23');
+  await expect(form.locator('#appTime')).toHaveValue('09:00');
+  await expect(form.locator('#appNotes')).toHaveValue('Revisar o registro');
+  await expect(form.locator('#compoundName0')).toHaveValue('Composto de teste');
+  expect(await stored(page)).toHaveLength(0);
+  await form.locator('#appNotes').fill('Revisto pelo usuário');
+  await form.locator('#appCycle').selectOption('c1d2');
+  await submit(page);
+  await expect(page.getByText('Registrado', { exact: true })).toBeVisible();
+  expect((await stored(page))[0].notes).toBe('Revisto pelo usuário');
+});
+
+test('diário edita a mesma anotação e combina texto com período', async ({ page }) => {
+  await seed(page);
+  await page.goto('/');
+  const diary = page.getByRole('region', { name: 'Diário' });
+  for (const [date, note] of [
+    ['2026-11-21', 'Anotação antiga'],
+    ['2026-11-22', 'Anotação nova'],
+  ]) {
+    await diary.getByLabel('Data do diário').fill(date);
+    await diary.getByLabel('Observações ou sintomas').fill(note);
+    await diary.getByRole('button', { name: 'Salvar no diário' }).click();
+  }
+  await diary.getByLabel('Buscar no diário').fill('anotação');
+  await diary.getByLabel('Diário de').fill('2026-11-22');
+  await diary.getByLabel('Diário até').fill('2026-11-22');
+  await expect(diary.locator('article')).toHaveCount(1);
+  await expect(diary.locator('article')).toContainText('Anotação nova');
+  await diary.getByRole('button', { name: 'Editar anotação' }).click();
+  const edit = page.getByRole('dialog', { name: 'Editar anotação' });
+  await edit.getByLabel('Observações ou sintomas').fill('Anotação corrigida');
+  await edit.getByRole('button', { name: 'OK' }).click();
+  await expect(diary.locator('article')).toContainText('Anotação corrigida');
+  await diary.getByLabel('Buscar no diário').fill('sem resultado');
+  await expect(diary).toContainText('Nenhuma anotação corresponde aos filtros.');
+  await page.reload();
+  await expect(diary.locator('article')).toHaveCount(2);
+  await expect(diary).toContainText('Anotação corrigida');
 });

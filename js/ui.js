@@ -1,4 +1,4 @@
-import { diaryHTML } from './personal.js';
+import { diaryHTML, todayAgendaHTML } from './personal.js';
 import { applications, filteredApplications } from './apps.js';
 import { backupStatusText } from './backup.js';
 import { calendarPage, compoundColorVar, decorateCalendarCompounds } from './calendar.js';
@@ -604,6 +604,7 @@ export function todayBlock() {
       ${primaryBtn}
       ${repeatBtn}
     </div>
+    ${todayAgendaHTML(tDate)}
   </div>`;
 }
 

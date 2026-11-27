@@ -1,5 +1,8 @@
 import {
   deletePersonalEntry,
+  editDiary,
+  reschedulePlan,
+  setDiaryFilter,
   personalEntries,
   planApplication,
   setPlanStatus,
@@ -140,15 +143,21 @@ export async function handleAction(e) {
       }
       break;
     case 'new-plan':
-      await planApplication(id);
+      planApplication(id);
       break;
     case 'record-plan': {
       const plan = personalEntries('plan').find((entry) => entry.id === id);
       if (plan?.status === 'planned') {
-        openDatedApplication(plan.date, plan.id);
+        openDatedApplication(plan.date, plan.id, plan.templateId);
       }
       break;
     }
+    case 'reschedule-plan':
+      reschedulePlan(id);
+      break;
+    case 'edit-diary':
+      editDiary(id);
+      break;
     case 'skip-plan':
       setPlanStatus(id, 'skipped');
       break;
@@ -453,7 +462,9 @@ if (typeof document !== 'undefined' && typeof document.addEventListener === 'fun
     if (!t || !t.dataset) {
       return;
     }
-    if (t.dataset.filter === 'apps') {
+    if (t.dataset.diaryFilter === 'query') {
+      setDiaryFilter('query', t.value);
+    } else if (t.dataset.filter === 'apps') {
       setApplicationFilter(t.value);
     } else if (t.dataset.filter === 'catalog') {
       updateCatalogFilter(t.value);
@@ -470,7 +481,9 @@ if (typeof document !== 'undefined' && typeof document.addEventListener === 'fun
     if (!t || !t.dataset) {
       return;
     }
-    if (t.dataset.appHistoryFilter) {
+    if (['from', 'to'].includes(t.dataset.diaryFilter)) {
+      setDiaryFilter(t.dataset.diaryFilter, t.value);
+    } else if (t.dataset.appHistoryFilter) {
       setApplicationHistoryFilter(t.dataset.appHistoryFilter, t.value);
     } else if (t.dataset.change === 'history-compound') {
       updateHistoryCompound(t.value);

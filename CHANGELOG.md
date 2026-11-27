@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## 2.40
+
+- **Início:** agenda dos compromissos pendentes de hoje com ações para registrar, pular e remarcar.
+- **Planejamento:** vincula um modelo ao compromisso e preenche o formulário para revisão.
+- **Diário:** permite corrigir anotações e combinar busca por texto com filtro por período.
+
 ## 2.39
 
 - **Aplicações:** salva e reutiliza modelos de preenchimento revisáveis.

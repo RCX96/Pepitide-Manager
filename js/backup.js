@@ -131,6 +131,7 @@ export function validateBackup(d) {
         (entry.kind === 'plan' &&
           strictDate(entry.date) &&
           text(entry.title, 120) &&
+          (entry.templateId === undefined || typeof entry.templateId === 'string') &&
           ['planned', 'skipped', 'recorded'].includes(entry.status)) ||
         (entry.kind === 'template' &&
           text(entry.title, 120) &&
